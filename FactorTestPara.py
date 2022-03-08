@@ -13,6 +13,7 @@ FactorInfopath = rootpath+'FactorInfo.xlsx'
 
 Datapath=rootpath+'DataBase/'
 Factorpath=rootpath+'FactorDB/'
+compresspath=rootpath+'压缩文件/'
 
 Temppath=rootpath+'temp/'
 

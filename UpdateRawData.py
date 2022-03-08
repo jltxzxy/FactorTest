@@ -57,8 +57,6 @@ def ASWSIndexEOD(infoDF):
 
 
 def getHS300Weight(infoDF):
-    #AIndexHS300CloseWeight
-    #AIndexCSI500WeightWeight
     starttime=FB.getUpdateStartTime(infoDF['最新时间'])
     sqlData=FB.getSql('select S_CON_WINDCODE,TRADE_DT,I_WEIGHT \
                       from wind.AIndexHS300CloseWeight where TRADE_DT>'+str(int(starttime)))
@@ -171,5 +169,40 @@ def getAnalystData(infoDF):
         FB.saveSqlData(sqlData,info_loc)
     
     
+def getAShareCFS(infoDF):
+    starttime=FB.getUpdateStartTime(infoDF['最新时间'])
+    sqlData=FB.getSql('select S_INFO_WINDCODE,REPORT_PERIOD,STATEMENT_TYPE,'+','.join(infoDF['数据库键'])+' from wind.AShareCashFlow where REPORT_PERIOD>='+str(int(starttime)))
+    sqlData=sqlData.sort_values(by='STATEMENT_TYPE')
+    sqlData=sqlData[sqlData['STATEMENT_TYPE'].isin(['408001000','408005000'])]
+    sqlData=sqlData.drop_duplicates(subset=['S_INFO_WINDCODE','REPORT_PERIOD'],keep='last')
+    del sqlData['STATEMENT_TYPE']
+    sqlData.rename(columns={'S_INFO_WINDCODE':'code','REPORT_PERIOD':'time'},inplace=True)
+    FB.saveFinData(sqlData,infoDF)
+    
+
+def getAShareBS(infoDF):
+    starttime=FB.getUpdateStartTime(infoDF['最新时间'])
+    sqlData=FB.getSql('select S_INFO_WINDCODE,REPORT_PERIOD,STATEMENT_TYPE,'+','.join(infoDF['数据库键'])+' from wind.AShareBalanceSheet where REPORT_PERIOD>='+str(int(starttime)))
+    sqlData=sqlData.sort_values(by='STATEMENT_TYPE')
+    sqlData=sqlData[sqlData['STATEMENT_TYPE'].isin(['408001000','408005000'])]
+    sqlData=sqlData.drop_duplicates(subset=['S_INFO_WINDCODE','REPORT_PERIOD'],keep='last')
+    del sqlData['STATEMENT_TYPE']
+    sqlData.rename(columns={'S_INFO_WINDCODE':'code','REPORT_PERIOD':'time'},inplace=True)
+    FB.saveFinData(sqlData,infoDF)
+    
+def getASharePL(infoDF):
+    starttime=FB.getUpdateStartTime(infoDF['最新时间'])
+    sqlData=FB.getSql('select S_INFO_WINDCODE,REPORT_PERIOD,STATEMENT_TYPE,'+','.join(infoDF['数据库键'])+' from wind.AShareIncome where REPORT_PERIOD>='+str(int(starttime)))
+    sqlData=sqlData.sort_values(by='STATEMENT_TYPE')
+    sqlData=sqlData[sqlData['STATEMENT_TYPE'].isin(['408001000','408005000'])]
+    sqlData=sqlData.drop_duplicates(subset=['S_INFO_WINDCODE','REPORT_PERIOD'],keep='last')
+    del sqlData['STATEMENT_TYPE']
+    sqlData.rename(columns={'S_INFO_WINDCODE':'code','REPORT_PERIOD':'time'},inplace=True)
+    FB.saveFinData(sqlData,infoDF)
     
     
+        
+    
+datainfo=pd.read_excel(DataInfopath)
+infoDF=datainfo[datainfo['函数']=='getAShareCFS']
+starttime=20201231

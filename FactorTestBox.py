@@ -888,12 +888,17 @@ def testTime(func):
 
 
 #预备
-def transData(data,key='factor',output='',startMonth=201001,endMonth=202112):
+def transData(data,key='factor',ANN_DT='BasicFactor_AShareFinancialIndicator_ANN_DT.txt', output='', startmonth=199912, endmonth=202112):
     '''
-    #输入的data需要为矩阵形式,index为time，columns为code，默认的key为factor，output默认为三列式，如果output=‘matrix’可以输出矩阵
-
-    '''    
-    ANN_DT=read_feather(Datapath + 'BasicFactor_AShareFinancialIndicator_ANN_DT.txt').set_index('time').stack().reset_index().set_index('level_1').astype(int).reset_index()
+    data为原始因子矩阵,key因子名,output为输出形式（三列或矩阵型）
+    ANN_DT为公布日期文件地址，默认'BasicFactor_AShareFinancialIndicator_ANN_DT.txt'；可选三大表ANN_DT
+    '''
+    if ANN_DT == 'BasicFactor_AShareFinancialIndicator_ANN_DT.txt':
+        ANN_DT=read_feather(Datapath + ANN_DT).set_index('time').reindex(getFisicalList())
+        ANN_DT.index.name = 'time'
+        ANN_DT = ANN_DT.stack().reset_index().set_index('level_1').astype(int).reset_index()
+    else:
+        ANN_DT=read_feather(Datapath + ANN_DT).set_index('time').stack().reset_index().set_index('level_1').astype(int).reset_index()
     data=data.set_index('time').stack().reset_index()
     factorDF=pd.merge(ANN_DT,data,on=['time','level_1'])
     factorDF.columns=['code','time','ANN_DT',key]
@@ -904,8 +909,8 @@ def transData(data,key='factor',output='',startMonth=201001,endMonth=202112):
     factorDF_loc=factorDF_loc.reindex(monthlist[monthlist>=factorDF_loc.index[0]]).fillna(method='ffill')
     factorDF=factorDF_loc.stack().reset_index()
     factorDF.rename(columns={0:key},inplace=True)
-    factorDF=factorDF[factorDF.time>=startMonth]
-    factorDF=factorDF[factorDF.time<=endMonth]
+    factorDF = factorDF[factorDF.time >= startmonth]
+    factorDF = factorDF[factorDF.time <= endmonth]
     if output=='matrix':
         return factorDF.pivot(index='time',columns='code',values=key)
     else:

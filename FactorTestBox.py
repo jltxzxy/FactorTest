@@ -885,20 +885,15 @@ def testTime(func):
 #    @classmethod 通过类名直接调用函数
 
 
-
-
-#预备
 def transData(data,key='factor',ANN_DT='BasicFactor_AShareFinancialIndicator_ANN_DT.txt', output='', startmonth=199912, endmonth=202112):
     '''
     data为原始因子矩阵,key因子名,output为输出形式（三列或矩阵型）
     ANN_DT为公布日期文件地址，默认'BasicFactor_AShareFinancialIndicator_ANN_DT.txt'；可选三大表ANN_DT
     '''
-    if ANN_DT == 'BasicFactor_AShareFinancialIndicator_ANN_DT.txt':
-        ANN_DT=read_feather(Datapath + ANN_DT).set_index('time').reindex(getFisicalList())
-        ANN_DT.index.name = 'time'
-        ANN_DT = ANN_DT.stack().reset_index().set_index('level_1').astype(int).reset_index()
-    else:
-        ANN_DT=read_feather(Datapath + ANN_DT).set_index('time').stack().reset_index().set_index('level_1').astype(int).reset_index()
+    ANN_DT=read_feather(Datapath + ANN_DT).set_index('time').reindex(getFisicalList())
+    ANN_DT.index.name = 'time'
+    ANN_DT = ANN_DT.stack().reset_index().set_index('level_1').astype(int).reset_index()
+    
     data=data.set_index('time').stack().reset_index()
     factorDF=pd.merge(ANN_DT,data,on=['time','level_1'])
     factorDF.columns=['code','time','ANN_DT',key]
@@ -915,3 +910,5 @@ def transData(data,key='factor',ANN_DT='BasicFactor_AShareFinancialIndicator_ANN
         return factorDF.pivot(index='time',columns='code',values=key)
     else:
         return factorDF
+
+#预备

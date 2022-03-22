@@ -887,7 +887,8 @@ def testTime(func):
 
 def transData(data,key='factor',ANN_DT='BasicFactor_AShareFinancialIndicator_ANN_DT.txt', output='', startmonth=199912, endmonth=202112):
     '''
-    data为原始因子矩阵,key因子名,output为输出形式（三列或矩阵型）
+    data为因子矩阵,需先删除非季节行, columns需有'time'
+    key因子名,output为输出形式（三列或矩阵型）
     ANN_DT为公布日期文件地址，默认'BasicFactor_AShareFinancialIndicator_ANN_DT.txt'；可选三大表ANN_DT
     '''
     ANN_DT=read_feather(Datapath + ANN_DT).set_index('time').reindex(getFisicalList())

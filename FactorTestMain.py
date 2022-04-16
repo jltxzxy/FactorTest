@@ -1,5 +1,8 @@
-from FactorTest.FactorTestBox import *
+
 from FactorTest.FactorTestPara import *
+from FactorTest.FactorTestBox import *
+import FactorTest.FactorTestBox as FB
+import FactorTest.FactorTestMain as FM
 
 
 class FactorTest():
@@ -14,6 +17,7 @@ class FactorTest():
         self.portfolioList={}
         self.ICAns={}
         self.portfolioAns={}
+        self.portfolioGroup = pd.DataFrame(columns=['time', 'code'])
         
     def getFactor(self,Factor):
         #考虑：频率统一为月度 ,sql型数据
@@ -97,7 +101,7 @@ class FactorTest():
         
         
     #计算按因子值排名前K
-    def calcTopK(self,factorlist='',startMonth='',endMonth='',k=30,asc=True):
+    def calcTopK(self,factorlist='',startMonth='',endMonth='',k=30,asc=True,base=''):
         if(factorlist==''):
             factorlist=self.factorlist
         if(type(factorlist)==str):
@@ -111,11 +115,20 @@ class FactorTest():
         RetData=RetData[RetData.time<=endMonth]
         if(type(self.filterStockDF)==pd.DataFrame):
             RetData=setStockPool(RetData,self.filterStockDF)
+        if ((base != '') & (base in self.portfolioGroup.columns)):
+            factorDB = self.portfolioGroup[self.portfolioGroup[base] == 1][['time', 'code']].merge(self.FactorDataBase,on=['time', 'code'], how='inner').dropna()
+        elif (base == ''):
+            factorDB = self.FactorDataBase
+        else:
+            print('error')
+            return factorlist
+
         for facname in factorlist:
-            Mer=self.FactorDataBase[['time','code',facname]].merge(RetData,on=['time','code'],how='outer').dropna()        
+            Mer=factorDB[['time','code',facname]].merge(RetData,on=['time','code'],how='outer').dropna()
             Mer['time']=Mer['time'].apply(lambda x:str(x))
-            
             topk_list=Mer.groupby('time').apply(selecttopK,facname,asc,k=k).reset_index()
+            isintopk = Mer.groupby('time').apply(isinTopK, facname, asc, k=k).reset_index(drop=True)
+            self.portfolioGroup = self.portfolioGroup.merge(isintopk, on=['time', 'code'], how='outer').fillna(0)
             self.portfolioList[facname]=topk_list
             self.portfolioAns[facname]=evaluatePortfolioRet(topk_list['up'])
             if(len(factorlist)==1):
@@ -125,8 +138,9 @@ class FactorTest():
             plt.show()
         if(len(factorlist)>1):
             print(self.portfolioDF)
-        
-    def calcTopKpct(self,factorlist='',startMonth='',endMonth='',k=0.1,asc=True):
+
+
+    def calcTopKpct(self,factorlist='',startMonth='',endMonth='',k=0.1,asc=True,base=''):
         if(factorlist==''):
             factorlist=self.factorlist
         if(type(factorlist)==str):
@@ -140,10 +154,20 @@ class FactorTest():
         RetData=RetData[RetData.time<=endMonth]
         if(type(self.filterStockDF)==pd.DataFrame):
             RetData=setStockPool(RetData,self.filterStockDF)
+        if ((base != '') & (base in self.portfolioGroup.columns)):
+            factorDB = self.portfolioGroup[self.portfolioGroup[base] == 1][['time', 'code']].merge(self.FactorDataBase,on=['time', 'code'], how='inner').dropna()
+        elif (base == ''):
+            factorDB = self.FactorDataBase
+        else:
+            print('error')
+            return factorlist
+
         for facname in factorlist:
-            Mer=self.FactorDataBase[['time','code',facname]].merge(RetData,on=['time','code'],how='outer').dropna()        
+            Mer=factorDB[['time','code',facname]].merge(RetData,on=['time','code'],how='outer').dropna()
             Mer['time']=Mer['time'].apply(lambda x:str(x))
             topk_list=Mer.groupby('time').apply(selecttopKpct,facname,asc,k=k).reset_index()
+            isintopk = Mer.groupby('time').apply(FB.isinTopK, facname, asc, k=k).reset_index(drop=True)
+            self.portfolioGroup = self.portfolioGroup.merge(isintopk, on=['time', 'code'], how='outer').fillna(0)
             self.portfolioList[facname]=topk_list
             self.portfolioAns[facname]=evaluatePortfolioRet(topk_list['up'])
             if(len(factorlist)==1):

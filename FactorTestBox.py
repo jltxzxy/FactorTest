@@ -443,6 +443,16 @@ def longshortfive(x,factor_name,asc=True,t=5):
     y[t]=x.iloc[div*(t-1):].mean()
     return y
 
+#判断各股票的指标是否在前k,k<1时取百分数
+def isinTopK(x,factor_name,asc=True,k=30):
+    num = int(x.shape[0] * k) if k<1 else k
+    x['rank'] = x[factor_name].rank(ascending=asc)
+    x['group'] = x['rank'].apply(lambda x: 1 if x <= num else 0)
+    y=x[['time','code','group']].rename(columns={'group': factor_name})
+    y['time'] = y['time'].astype(int)
+    return y
+
+
 #筛选出每月指标最大的前k只股票
 def selecttopK(x,factor_name,asc=True,k=30):
     x=x.sort_values(factor_name,ascending=asc)['ret']#True是从小到大

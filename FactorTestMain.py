@@ -80,7 +80,8 @@ class FactorTest():
             Mer=self.FactorDataBase[['time','code',facname]].merge(RetData,on=['time','code'],how='outer').dropna()        
             ls_ret=Mer.groupby('time').apply(longshortfive,facname,asc=asc,t=t).dropna()
             ls_ret['多空组合']=ls_ret[1]-ls_ret[t]#第一组-第五组
-            
+            isingroupt = Mer.groupby('time').apply(isinGroupT, facname, asc, t=t).reset_index(drop=True)
+            self.portfolioGroup = self.portfolioGroup.merge(isingroupt, on=['time', 'code'], how='outer').dropna()
             self.portfolioList[facname]=ls_ret
             self.portfolioAns[facname]=evaluatePortfolioRet(ls_ret[1]-ls_ret[t]) 
             if(len(factorlist)==1):

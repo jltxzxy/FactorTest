@@ -443,6 +443,19 @@ def longshortfive(x,factor_name,asc=True,t=5):
     y[t]=x.iloc[div*(t-1):].mean()
     return y
 
+#将总体样本排序并分为t组，判断各股票的指标在哪一组
+def isinGroupT(x,factor_name,asc=True,t=5):
+    x = x.sort_values(factor_name, ascending=asc)
+    num=x.shape[0]
+    div=int(num/t)
+    x['group']=0
+    for i in range(t-1):
+        x.iloc[div*i:div*(i+1)]['group']=i+1
+    x.iloc[div * (t - 1):]['group']=t
+    x=x[['time','code','group']]
+    return x
+
+
 #判断各股票的指标是否在前k,k<1时取百分数
 def isinTopK(x,factor_name,asc=True,k=30):
     num = int(x.shape[0] * k) if k<1 else k

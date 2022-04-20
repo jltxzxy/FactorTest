@@ -1,8 +1,8 @@
-
-from FactorTest.FactorTestPara import *
-from FactorTest.FactorTestBox import *
 import FactorTest.FactorTestBox as FB
 import FactorTest.FactorTestMain as FM
+from FactorTest.FactorTestBox import *
+from FactorTest.FactorTestPara import *
+import pandas as pd
 
 
 class FactorTest():
@@ -82,6 +82,7 @@ class FactorTest():
             ls_ret['多空组合']=ls_ret[1]-ls_ret[t]#第一组-第五组
             isingroupt = Mer.groupby('time').apply(isinGroupT, facname, asc, t=t).reset_index(drop=True)
             self.portfolioGroup = self.portfolioGroup.merge(isingroupt, on=['time', 'code'], how='outer').dropna()
+
             self.portfolioList[facname]=ls_ret
             self.portfolioAns[facname]=evaluatePortfolioRet(ls_ret[1]-ls_ret[t]) 
             if(len(factorlist)==1):
@@ -99,8 +100,6 @@ class FactorTest():
         self.calcIC(factorlist,startMonth,endMonth)
         self.calcLongShort(factorlist,startMonth,endMonth,t,asc)
         
-        
-        
     #计算按因子值排名前K
     def calcTopK(self,factorlist='',startMonth='',endMonth='',k=30,asc=True,base=''):
         if(factorlist==''):
@@ -117,7 +116,7 @@ class FactorTest():
         if(type(self.filterStockDF)==pd.DataFrame):
             RetData=setStockPool(RetData,self.filterStockDF)
         if ((base != '') & (base in self.portfolioGroup.columns)):
-            factorDB = self.portfolioGroup[self.portfolioGroup[base] == 1][['time', 'code']].merge(self.FactorDataBase,on=['time', 'code'], how='inner').dropna()
+            factorDB = self.portfolioGroup[self.portfolioGroup[base] == 1][['time', 'code']].merge(self.FactorDataBase,on=['time', 'code'],how='inner').dropna()
         elif (base == ''):
             factorDB = self.FactorDataBase
         else:
@@ -139,8 +138,7 @@ class FactorTest():
             plt.show()
         if(len(factorlist)>1):
             print(self.portfolioDF)
-
-
+        
     def calcTopKpct(self,factorlist='',startMonth='',endMonth='',k=0.1,asc=True,base=''):
         if(factorlist==''):
             factorlist=self.factorlist
@@ -155,8 +153,10 @@ class FactorTest():
         RetData=RetData[RetData.time<=endMonth]
         if(type(self.filterStockDF)==pd.DataFrame):
             RetData=setStockPool(RetData,self.filterStockDF)
+        if (type(self.filterStockDF) == pd.DataFrame):
+            RetData = setStockPool(RetData, self.filterStockDF)
         if ((base != '') & (base in self.portfolioGroup.columns)):
-            factorDB = self.portfolioGroup[self.portfolioGroup[base] == 1][['time', 'code']].merge(self.FactorDataBase,on=['time', 'code'], how='inner').dropna()
+            factorDB = self.portfolioGroup[self.portfolioGroup[base] == 1][['time', 'code']].merge(self.FactorDataBase,on=['time', 'code'],how='inner').dropna()
         elif (base == ''):
             factorDB = self.FactorDataBase
         else:
@@ -179,6 +179,48 @@ class FactorTest():
         if(len(factorlist)>1):
             print(self.portfolioDF)
 
+    def calcFutureRet(self,factorlist='',startMonth='',endMonth='',L=36,t=5,asc=True):
+        '''
+        Parameters
+        ----------
+        factorlist : TYPE, optional
+            需要测试的因子  'factor1' 或 ['factor1','factor2'] 可留空
+        startMonth :int 起始月份 201001   可留空
+        endMonth : int 终止月份 形如202201 可留空
+        L : 向后看的月数，默认36个月
+        t : int 分组数，默认为5.
+        asc : T or F 方向， 默认为True 从小到大 False为从大到小
+        Returns
+        -------
+        返回每个月向后未来1到36个月的收益均值，存储在Test.FutureRet里面
+        '''
+        if(factorlist==''):
+            factorlist=self.factorlist
+        if(type(factorlist)==str):
+            factorlist=[factorlist]
+        if(startMonth==''):
+            startMonth=int(str(self.startdate)[:6])
+        if(endMonth==''):
+            endMonth=int(str(self.enddate)[:6])
+        RetData=self.retData.pivot(index='time',columns='code',values='ret')
+        self.FutureRet=pd.DataFrame(columns=factorlist)
+        RetData=RetData.apply(lambda x:np.log(x+1))
+        for i in range(1,L+1):
+            Ret_loc=RetData.rolling(window=i).sum().apply(lambda x:np.e**x-1).shift(-1*i+1).dropna(how='all').stack().reset_index()
+            Ret_loc.columns=['time','code','ret']
+            Ret_loc=Ret_loc[Ret_loc.time>=startMonth]
+            Ret_loc=Ret_loc[Ret_loc.time<=endMonth]
+            if(type(self.filterStockDF)==pd.DataFrame):
+                Ret_loc=setStockPool(RetData,self.filterStockDF)
+            
+            for facname in factorlist:
+                Mer=self.FactorDataBase[['time','code',facname]].merge(Ret_loc,on=['time','code'],how='outer').dropna()        
+                ls_ret=Mer.groupby('time').apply(longshortfive,facname,asc=asc,t=t).dropna()
+                self.FutureRet.loc[i,facname]=(ls_ret[1]-ls_ret[t]).mean()#第一组-第五组
+        self.FutureRet.plot()
+    #双分组，打印热力图、想一想如何返回值
+    def calcDoubleSort(self):
+        pass
     #计算日度多空收益
     def calcDailyLongShort(self):
         pass

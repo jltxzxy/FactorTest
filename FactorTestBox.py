@@ -134,19 +134,15 @@ def getSql(sql_req):
     data = pd.read_sql(sql_req, con=db_oracle)
     return data
 #计算最大回撤
-def maxDrawDown(return_list):
+def maxDrawDown(Rev_seq):
     """
     求最大回撤率
     #param return_list:Series格式月度收益率
     #return：0~1
 
     """
-    return_list=list((return_list+1).cumprod())
-    i = np.argmax((np.maximum.accumulate(return_list) - return_list) / np.maximum.accumulate(return_list))  # 结束位置
-    if i == 0:
-        return 0
-    j = np.argmax(return_list[:i])  # 开始位置
-    return (return_list[i] - return_list[j]) / (return_list[j])
+    Rev_list=(Rev_seq+1).cumprod()
+    return (Rev_list/Rev_list.cummax()-1).min()
 #修改——自动多样式
 def to_time(x,timetype='%Y%m%d'):
     return pd.Series(x).apply(lambda x:datetime.datetime.strptime(str(int(x)),timetype))
@@ -213,7 +209,7 @@ def getFisicalList(period='Season'):
         for year in year_list:
             for season in ['0331','0630','0930','1231']:
                 monthlist.append(int(str(year)+season))
-        monthlist=pd.Series(monthlist)
+        monthlist=pd.Series(monthlist,name='time')
         return monthlist[monthlist>=19891231]
 #获取股票序列
 def getStockList():
@@ -242,16 +238,23 @@ def getIndexComponent(indexname='wind'):
     """
     if(indexname=='wind'):
         IndexComponent=readLocalData('WINDAComponent.txt').dropna()
+        IndexComponent=IndexComponent[IndexComponent.isComponent!=0]
+
     if(indexname==300):
         IndexComponent=readLocalData('HS300Component.txt').dropna()
     if(indexname==500):
         IndexComponent=readLocalData('CSI500Component.txt').dropna().reset_index(drop=True)
+        IndexComponent=IndexComponent[IndexComponent.isComponent!=0]
     if(indexname==800):
         IndexComponent=readLocalData('HS300Component.txt').dropna().reset_index(drop=True)
         IndexComponent1=readLocalData('CSI500Component.txt').dropna().reset_index(drop=True)
         IndexComponent=IndexComponent.append(IndexComponent1)
+        IndexComponent=IndexComponent[IndexComponent.isComponent!=0]
+
     if(indexname==1000):
         IndexComponent=readLocalData('CSI1000Component.txt').dropna().reset_index(drop=True)
+        IndexComponent=IndexComponent[IndexComponent.isComponent!=0]
+
     IndexComponent['time']=IndexComponent['time'].apply(lambda x:int(str(x)[:6]))
     IndexComponent=IndexComponent.drop_duplicates(subset=['time','code'],keep='last')
     return IndexComponent
@@ -266,7 +269,7 @@ def setStockPool(DF,DFfilter):
     return DF
 
 #得到申万行业分类数据 
-def getIndustryData(level=1,freq='day',fill=False):
+def getSWIndustryData(level=1,freq='day',fill=False):
     """
         startdate 格式例20200731  缺失则代表不加限制
     """
@@ -292,7 +295,7 @@ def getSWIndustry(DF,level=1):
     """
         level 1 申万一级行业
     """
-    SWData=getIndustryData(level)
+    SWData=getSWIndustryData(level)
     DF=DF.merge(SWData,on=['time','code'],how='left')
     return DF
 
@@ -342,7 +345,7 @@ def factorStack(factor,factorname):
     '''
     factor=factor.stack().reset_index()
     factor.columns=['time','code',factorname]
-    factor['time']=factor['time'].apply(lambda x:str(x))
+    factor['time']=factor['time'].apply(lambda x:int(str(x)))
     return factor
 
 #剔除ST、上市60天以内、停牌股
@@ -377,6 +380,12 @@ def deMAD(x,fac,k1=5):
     x[fac]=np.clip(x[fac],xmedian-k1*newmad,xmedian+k1*newmad)
     return x
 
+def normBoxCox(x,fac):
+    if(x[fac].dropna().count()>1):
+        x[fac]=scipy.stats.boxcox(x[fac]-x[fac].min()+1)[0]
+    return x
+    
+    
 def fillmean(x,fac):
     x[fac]=x[fac].fillna(x.mean())
     return x
@@ -465,7 +474,6 @@ def isinTopK(x,factor_name,asc=True,k=30):
     y['time'] = y['time'].astype(int)
     return y
 
-
 #筛选出每月指标最大的前k只股票
 def selecttopK(x,factor_name,asc=True,k=30):
     x=x.sort_values(factor_name,ascending=asc)['ret']#True是从小到大
@@ -480,7 +488,7 @@ def selecttopK(x,factor_name,asc=True,k=30):
 def selecttopKpct(x,factor_name,asc=True,k=0.1):
     x=x.sort_values(factor_name,ascending=asc)['ret']#True是从小到大
     y=pd.Series([])
-    num=int(x.shape[0]/k)
+    num=int(x.shape[0]*k)
     y['up']=x.iloc[:num].mean()
     y['down']=x.iloc[-num:].mean()
     y['mean']=x.mean()
@@ -493,11 +501,20 @@ def calcResid(y,x1):
     resid=y-y_pred
     return resid
 
-#加入行业
+#加入sw行业
 def addXSWindDum(DF):
-    ind_tmp=getIndustryData(freq='month')
+    ind_tmp=getSWIndustryData(freq='month')
     if('SWind' in DF):
         del DF['SWind']
+    DF=DF.merge(ind_tmp,on=['time','code'],how='left')
+    return DF
+
+
+#加入中信行业
+def addXZXind(DF):
+    ind_tmp=getZXIndustryData(freq='month')
+    if('ZXind' in DF):
+        del DF['ZXind']
     DF=DF.merge(ind_tmp,on=['time','code'],how='left')
     return DF
 
@@ -737,12 +754,15 @@ def getUpdateStartTime(x, backdays=0):
       日频使用1日
       更低频率anndt等使用5日
     '''
+    if(type(x)!=pd.core.series.Series):
+        x=pd.Series(x)
     if (x.count() != len(x)):
         return g_starttime
     else:
-        return (datetime.datetime.strptime(str(int(x.min())), '%Y%m%d') - datetime.timedelta(days=backdays)).strftime(
-            '%Y%m%d')
+        return int((datetime.datetime.strptime(str(int(x.min())), '%Y%m%d') - datetime.timedelta(days=backdays)).strftime('%Y%m%d'))
+
     
+
 def readLocalData(rawpath,key=''):
     """
        param:path 路径  key 键名
@@ -908,17 +928,22 @@ def testTime(func):
 #    @classmethod 通过类名直接调用函数
 
 
-
-
-#预备
-def transData(data,key='factor',output='',startMonth=201001,endMonth=202112):
+def transData(data,key='factor',ANN_DT='BasicFactor_AShareFinancialIndicator_ANN_DT.txt', output='', startmonth=199912, endmonth=202112):
     '''
-    #输入的data需要为矩阵形式,index为time，columns为code，默认的key为factor，output默认为三列式，如果output=‘matrix’可以输出矩阵
+    data为因子矩阵,需预先getFisicalList()处理
+    key因子名,output为输出形式（三列或矩阵型）
+    ANN_DT为公布日期文件地址，默认'BasicFactor_AShareFinancialIndicator_ANN_DT.txt'；可选三大表ANN_DT
+    '''
 
-    '''    
-    ANN_DT=read_feather(Datapath + 'BasicFactor_AShareFinancialIndicator_ANN_DT.txt').set_index('time').stack().reset_index().set_index('level_1').astype(int).reset_index()
-    data=data.set_index('time').stack().reset_index()
-    factorDF=pd.merge(ANN_DT,data,on=['time','level_1'])
+    ANN_DT=read_feather(Datapath + ANN_DT).set_index('time').reindex(getFisicalList())
+    ANN_DT.index.name='time'
+    ANN_DT.columns.name='code'
+    ANN_DT = ANN_DT.stack().reset_index().set_index('code').astype(int).reset_index()
+    if(data.index.name != 'time'):
+        data=data.set_index('time')
+    data.columns.name='code'
+    data=data.stack().reset_index()
+    factorDF=pd.merge(ANN_DT,data,on=['time','code'])
     factorDF.columns=['code','time','ANN_DT',key]
     monthlist=getTradeDateList('month')
     factorDF['rtime']=factorDF['ANN_DT'].apply(lambda x:int(str(x)[:6]))
@@ -927,9 +952,30 @@ def transData(data,key='factor',output='',startMonth=201001,endMonth=202112):
     factorDF_loc=factorDF_loc.reindex(monthlist[monthlist>=factorDF_loc.index[0]]).fillna(method='ffill')
     factorDF=factorDF_loc.stack().reset_index()
     factorDF.rename(columns={0:key},inplace=True)
-    factorDF=factorDF[factorDF.time>=startMonth]
-    factorDF=factorDF[factorDF.time<=endMonth]
+    factorDF = factorDF[factorDF.time >= startmonth]
+    factorDF = factorDF[factorDF.time <= endmonth]
     if output=='matrix':
         return factorDF.pivot(index='time',columns='code',values=key)
     else:
         return factorDF
+
+def calc_plot(DF):
+    DF=DF.reset_index()
+    DF['time']=DF['time'].astype('str')
+    DF.set_index('time').plot()
+    
+def calcFisicalLYR(DF):
+    DF=DF.loc[getFisicalList('year')].fillna('empty').reindex(getFisicalList()).ffill()
+    DF[DF=='empty']=np.nan
+    return DF
+
+def calcFisicalq(DF):
+    DFlast=DF.copy()
+    DFlast.loc[getFisicalList('year')]=0
+    DFlast=DFlast.shift(1)
+    return (DF-DFlast)
+
+
+def calcFisicalttm(DF):
+    DFq=calcFisicalq(DF)
+    return DFq.rolling(window=4).sum()

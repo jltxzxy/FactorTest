@@ -1,8 +1,5 @@
-import FactorTest.FactorTestBox as FB
-import FactorTest.FactorTestMain as FM
 from FactorTest.FactorTestBox import *
 from FactorTest.FactorTestPara import *
-import pandas as pd
 
 
 class FactorTest():
@@ -167,7 +164,7 @@ class FactorTest():
             Mer=factorDB[['time','code',facname]].merge(RetData,on=['time','code'],how='outer').dropna()
             Mer['time']=Mer['time'].apply(lambda x:str(x))
             topk_list=Mer.groupby('time').apply(selecttopKpct,facname,asc,k=k).reset_index()
-            isintopk = Mer.groupby('time').apply(FB.isinTopK, facname, asc, k=k).reset_index(drop=True)
+            isintopk = Mer.groupby('time').apply(isinTopK, facname, asc, k=k).reset_index(drop=True)
             self.portfolioGroup = self.portfolioGroup.merge(isintopk, on=['time', 'code'], how='outer').fillna(0)
             self.portfolioList[facname]=topk_list
             self.portfolioAns[facname]=evaluatePortfolioRet(topk_list['up'])

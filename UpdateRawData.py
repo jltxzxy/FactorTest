@@ -139,7 +139,6 @@ def getValidData(infoDF):
     #上市时间
     Close=Close.fillna(method='ffill').cumsum()
     FB.save_feather(Datapath+infoDF.iloc[2]['存储地址'],Close.reset_index())
-    
     STData=FB.read_feather(Datapath + 'BasicFactor_isST.txt').set_index('time')
     LTData=FB.read_feather(Datapath + 'BasicFactor_StockHaltDay.txt').set_index('time')
     HDData=FB.read_feather(Datapath + 'BasicFactor_ListedTime.txt').set_index('time')
@@ -199,10 +198,31 @@ def getASharePL(infoDF):
     del sqlData['STATEMENT_TYPE']
     sqlData.rename(columns={'S_INFO_WINDCODE':'code','REPORT_PERIOD':'time'},inplace=True)
     FB.saveFinData(sqlData,infoDF)
-    
-    
+
+def getIndexWeight(infoDF):
+    from WindPy import w
+    w.start()
+    index=FB.read_feather(Datapath+'IndexFactor_S_DQ_OPEN.txt').set_index('time')
+    tradelist=FB.getTradeDateList()
+    tradelist=pd.DataFrame(tradelist)
+    tradelist['m']=tradelist['time'].apply(lambda x:int(x/100))
+    tradelist=tradelist.drop_duplicates('m',keep='last')['time'].astype('str')
+    for code in infoDF.index:        
+        starttime=max(FB.getUpdateStartTime(infoDF.loc[code]['最新时间']),index[infoDF.loc[code,'数据库键']].dropna().index[0])
+        if(os.path.exists(Datapath+infoDF.loc[code,'存储地址'])):
+            Data=pd.read_feather(Datapath+infoDF.loc[code,'存储地址']).set_index('time')
+        else:
+            Data=pd.DataFrame()
+        for i in tradelist[tradelist>str(starttime)]:        
+            Wdata=w.wset("indexconstituent","date=" + i[:4]+'-'+i[4:6]+'-'+i[6:]+ ";windcode="+infoDF.loc[code,'数据库键']+";field=wind_code,i_weight")
+            if(len(Wdata.Data)==0):
+                continue
+            data_loc=pd.DataFrame()
+            data_loc['code']=Wdata.Data[0]
+            data_loc['iweight']=Wdata.Data[1]            
+            data_loc['time']=int(i)
+            Data=Data.append(data_loc.pivot(index='time',columns='code',values='iweight'))
+        Data.reindex(tradelist[tradelist>str(index[infoDF.loc[code,'数据库键']].dropna().index[0])].astype('int'))
+        FB.save_feather(Datapath+infoDF.loc[code,'存储地址'],Data.reset_index())
         
-    
-datainfo=pd.read_excel(DataInfopath)
-infoDF=datainfo[datainfo['函数']=='getAShareCFS']
-starttime=20201231
+        

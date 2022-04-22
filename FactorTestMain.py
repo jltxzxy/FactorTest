@@ -74,10 +74,10 @@ class FactorTest():
         if(type(self.filterStockDF)==pd.DataFrame):
             RetData=setStockPool(RetData,self.filterStockDF)
         for facname in factorlist:
-            Mer=self.FactorDataBase[['time','code',facname]].merge(RetData,on=['time','code'],how='outer').dropna()        
-            ls_ret=Mer.groupby('time').apply(longshortfive,facname,asc=asc,t=t).dropna()
-            ls_ret['多空组合']=ls_ret[1]-ls_ret[t]#第一组-第五组
-            isingroupt = Mer.groupby('time').apply(isinGroupT, facname, asc, t=t).reset_index(drop=True)
+            Mer=self.FactorDataBase[['time','code',facname]].merge(RetData,on=['time','code'],how='outer').dropna()
+            ls_ret = Mer.groupby('time').apply(lambda x: longshortfive(x, facname, asc=asc, t=t)[0]).dropna()
+            ls_ret['多空组合'] = ls_ret[1] - ls_ret[t]  # 第一组-第五组
+            isingroupt = Mer.groupby('time').apply(lambda x: longshortfive(x, facname, asc=asc, t=t)[1]).reset_index(drop=True)
             self.portfolioGroup = self.portfolioGroup.merge(isingroupt, on=['time', 'code'], how='outer').dropna()
 
             self.portfolioList[facname]=ls_ret
@@ -123,8 +123,8 @@ class FactorTest():
         for facname in factorlist:
             Mer=factorDB[['time','code',facname]].merge(RetData,on=['time','code'],how='outer').dropna()
             Mer['time']=Mer['time'].apply(lambda x:str(x))
-            topk_list=Mer.groupby('time').apply(selecttopK,facname,asc,k=k).reset_index()
-            isintopk = Mer.groupby('time').apply(isinTopK, facname, asc, k=k).reset_index(drop=True)
+            topk_list = Mer.groupby('time').apply(lambda x: selecttopK(x, facname, asc, k=k)[0]).reset_index()
+            isintopk = Mer.groupby('time').apply(lambda x: selecttopK(x, facname, asc, k=k)[1]).reset_index(drop=True)
             self.portfolioGroup = self.portfolioGroup.merge(isintopk, on=['time', 'code'], how='outer').fillna(0)
             self.portfolioList[facname]=topk_list
             self.portfolioAns[facname]=evaluatePortfolioRet(topk_list['up'])
@@ -135,46 +135,7 @@ class FactorTest():
             plt.show()
         if(len(factorlist)>1):
             print(self.portfolioDF)
-        
-    def calcTopKpct(self,factorlist='',startMonth='',endMonth='',k=0.1,asc=True,base=''):
-        if(factorlist==''):
-            factorlist=self.factorlist
-        if(type(factorlist)==str):
-            factorlist=[factorlist]
-        if(startMonth==''):
-            startMonth=int(str(self.startdate)[:6])
-        if(endMonth==''):
-            endMonth=int(str(self.enddate)[:6])
-        RetData=self.retData
-        RetData=RetData[RetData.time>=startMonth]
-        RetData=RetData[RetData.time<=endMonth]
-        if(type(self.filterStockDF)==pd.DataFrame):
-            RetData=setStockPool(RetData,self.filterStockDF)
-        if (type(self.filterStockDF) == pd.DataFrame):
-            RetData = setStockPool(RetData, self.filterStockDF)
-        if ((base != '') & (base in self.portfolioGroup.columns)):
-            factorDB = self.portfolioGroup[self.portfolioGroup[base] == 1][['time', 'code']].merge(self.FactorDataBase,on=['time', 'code'],how='inner').dropna()
-        elif (base == ''):
-            factorDB = self.FactorDataBase
-        else:
-            print('error')
-            return factorlist
 
-        for facname in factorlist:
-            Mer=factorDB[['time','code',facname]].merge(RetData,on=['time','code'],how='outer').dropna()
-            Mer['time']=Mer['time'].apply(lambda x:str(x))
-            topk_list=Mer.groupby('time').apply(selecttopKpct,facname,asc,k=k).reset_index()
-            isintopk = Mer.groupby('time').apply(isinTopK, facname, asc, k=k).reset_index(drop=True)
-            self.portfolioGroup = self.portfolioGroup.merge(isintopk, on=['time', 'code'], how='outer').fillna(0)
-            self.portfolioList[facname]=topk_list
-            self.portfolioAns[facname]=evaluatePortfolioRet(topk_list['up'])
-            if(len(factorlist)==1):
-                print(facname+':')
-                topk_list['up'].apply(lambda x:x+1).cumprod().plot()
-                print(self.portfolioAns[facname])
-            plt.show()
-        if(len(factorlist)>1):
-            print(self.portfolioDF)
 
     def calcFutureRet(self,factorlist='',startMonth='',endMonth='',L=36,t=5,asc=True):
         '''

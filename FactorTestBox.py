@@ -441,58 +441,39 @@ def dayToMonth(DF,factor_list='',method='last'):
         x_tmp=x_tmp.merge(x1,on=['time','code'],how='outer')
     return x_tmp
 
-#多空t分组
+#多空t分组,并判断各股票的指标在哪一组
 def longshortfive(x,factor_name,asc=True,t=5):
-    x=x.sort_values(factor_name,ascending=asc)['ret']#True是从小到大
-    num=x.count()
+    x = x.sort_values(factor_name, ascending=asc)
+    z=x['ret']#True是从小到大
+    num=z.count()
     div=int(num/t)
     y=pd.Series([])
     for i in range(t-1):
-        y[i+1]=x.iloc[div*i:div*(i+1)].mean()
-    y[t]=x.iloc[div*(t-1):].mean()
-    return y
-
-#将总体样本排序并分为t组，判断各股票的指标在哪一组
-def isinGroupT(x,factor_name,asc=True,t=5):
-    x = x.sort_values(factor_name, ascending=asc)
-    num=x.shape[0]
-    div=int(num/t)
-    x['group']=0
-    for i in range(t-1):
-        x.iloc[div*i:div*(i+1)]['group']=i+1
-    x.iloc[div * (t - 1):]['group']=t
-    x=x[['time','code','group']]
-    return x
+        y[i+1]=z.iloc[div*i:div*(i+1)].mean()
+    y[t]=z.iloc[div*(t-1):].mean()
+    x['group'] = 0
+    for i in range(t - 1):
+        x.iloc[div * i:div * (i + 1)]['group'] = i + 1
+    x.iloc[div * (t - 1):]['group'] = t
+    x = x[['time', 'code', 'group']]
+    return y,x
 
 
-#判断各股票的指标是否在前k,k<1时取百分数
-def isinTopK(x,factor_name,asc=True,k=30):
-    num = int(x.shape[0] * k) if k<1 else k
+#筛选出每月指标最大的前k只股票(当k<1，改为筛选指标最大的前k%股票)，同时判断各股票的指标是否在前k（k%）
+def selecttopK(x,factor_name,asc=True,k=30):
+    z=x.sort_values(factor_name,ascending=asc)['ret']#True是从小到大
+    y=pd.Series([])
+    num=int(x.shape[0]*k) if k<1 else k
+    y['up']=z.iloc[:num].mean()
+    y['down']=z.iloc[-num:].mean()
+    y['mean']=z.mean()
+
     x['rank'] = x[factor_name].rank(ascending=asc)
     x['group'] = x['rank'].apply(lambda x: 1 if x <= num else 0)
-    y=x[['time','code','group']].rename(columns={'group': factor_name})
-    y['time'] = y['time'].astype(int)
-    return y
+    w = x[['time', 'code', 'group']].rename(columns={'group': factor_name})
+    w['time'] = w['time'].astype(int)
+    return y,w
 
-#筛选出每月指标最大的前k只股票
-def selecttopK(x,factor_name,asc=True,k=30):
-    x=x.sort_values(factor_name,ascending=asc)['ret']#True是从小到大
-    y=pd.Series([])
-    y['up']=x.iloc[:k].mean()
-    y['down']=x.iloc[-k:].mean()
-    y['mean']=x.mean()
-    return y
-
-
-#筛选出每月指标最大的前k%股票
-def selecttopKpct(x,factor_name,asc=True,k=0.1):
-    x=x.sort_values(factor_name,ascending=asc)['ret']#True是从小到大
-    y=pd.Series([])
-    num=int(x.shape[0]*k)
-    y['up']=x.iloc[:num].mean()
-    y['down']=x.iloc[-num:].mean()
-    y['mean']=x.mean()
-    return y
     
 #取残差
 def calcResid(y,x1):

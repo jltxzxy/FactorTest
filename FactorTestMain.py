@@ -15,6 +15,7 @@ class FactorTest():
         self.ICAns={}
         self.portfolioAns={}
         self.portfolioGroup = pd.DataFrame(columns=['time', 'code'])
+        self.annualTurnover = {}
         
     def getFactor(self,Factor):
         #考虑：频率统一为月度 ,sql型数据
@@ -81,16 +82,22 @@ class FactorTest():
             self.portfolioGroup = self.portfolioGroup.merge(isingroupt, on=['time', 'code'], how='outer').dropna()
 
             self.portfolioList[facname]=ls_ret
-            self.portfolioAns[facname]=evaluatePortfolioRet(ls_ret[1]-ls_ret[t]) 
+            self.portfolioAns[facname]=evaluatePortfolioRet(ls_ret[1]-ls_ret[t])
+            self.annualTurnover[facname] = calcAnnualTurnover(self.portfolioGroup, facname)
             if(len(factorlist)==1):
                 print(facname+':')
                 ls_ret1=ls_ret.reset_index().copy()
                 ls_ret1['time']=ls_ret1['time'].apply(lambda x:str(x))
                 ls_ret1.set_index('time').apply(lambda x:x+1).cumprod().plot()
                 print(self.portfolioAns[facname])
+                print('年化换手率:')
+                print(self.annualTurnover[facname])
             plt.show()
         if(len(factorlist)>1):
             print(self.portfolioDF)
+            print('年化换手率:')
+            for keys in factorlist:
+                print(self.annualTurnover[keys])
         
     #常规测试流程
     def autotest(self,factorlist='',startMonth='',endMonth='',t=5,asc=True):
@@ -128,13 +135,19 @@ class FactorTest():
             self.portfolioGroup = self.portfolioGroup.merge(isintopk, on=['time', 'code'], how='outer').fillna(0)
             self.portfolioList[facname]=topk_list
             self.portfolioAns[facname]=evaluatePortfolioRet(topk_list['up'])
+            self.annualTurnover[facname] = calcAnnualTurnover(self.portfolioGroup, facname)
             if(len(factorlist)==1):
                 print(facname+':')
                 topk_list['up'].apply(lambda x:x+1).cumprod().plot()
                 print(self.portfolioAns[facname])
+                print('年化换手率:')
+                print(self.annualTurnover[facname])
             plt.show()
         if(len(factorlist)>1):
             print(self.portfolioDF)
+            print('年化换手率:')
+            for keys in factorlist:
+                print(self.annualTurnover[keys])
 
 
     def calcFutureRet(self,factorlist='',startMonth='',endMonth='',L=36,t=5,asc=True):

@@ -455,7 +455,8 @@ def longshortfive(x,factor_name,asc=True,t=5):
     for i in range(t - 1):
         x.iloc[div * i:div * (i + 1)]['group'] = i + 1
     x.iloc[div * (t - 1):]['group'] = t
-    x = x[['time', 'code', 'group']]
+    x = x[['time', 'code', 'group']].rename(columns={'group': factor_name})
+    x['time'] = x['time'].astype(int)
     return y,x
 
 
@@ -709,6 +710,24 @@ def evaluatePortfolioRet(Rev_seq,t=12):
     Rev_list=(Rev_seq+1).cumprod()
     ret_maxloss=(Rev_list/Rev_list.cummax()-1).min()
     return pd.Series([ret_mean,ret_sharpe,ret_winrate,ret_maxloss],index=['年化收益率:','信息比率:','胜率:','最大回撤:'])
+
+def calcAnnualTurnover(GroupData,facname,t=12):
+    groupdata=GroupData
+    groupNum = groupdata[['time', 'code', facname]].groupby(['time', facname]).count().reset_index()
+    groupNum['weight'] = 1 / groupNum['code']
+    groupdata = groupdata.merge(groupNum[['time', facname, 'weight']], how='outer')
+    groupList = groupdata[facname].unique()
+    annual_turnover = pd.Series(index=groupList)
+    for i in groupList:
+        component = groupdata.copy()
+        component['weight'] = component['weight'].where(component[facname] == i, 0)
+        component['lag_weight'] = component.groupby('code')['weight'].shift(1).fillna(0)
+        component = component[component['time'] != component['time'].unique()[0]]
+        component['deviate'] = (component['weight'] - component['lag_weight']).abs()
+        avg_dev = (component.groupby('time')['deviate'].sum()/2).mean() * t
+        annual_turnover[i] = avg_dev
+    return annual_turnover
+
 # 更新数据库信息
 def DataRenewTime():
     datainfo = pd.read_excel(DataInfopath)

@@ -477,16 +477,13 @@ def isinTopK(x,factor_name,asc=True,k=30):
     return w
 
 def calcGroupRet(x,factor_name,groupdata):
-    groupdata=groupdata.rename(columns={factor_name:'group'})
+    groupdata = groupdata.rename(columns={factor_name: 'group'})
     x['time'] = x['time'].astype(int)
-    mer=x.merge(groupdata,on=['time','code'])#True是从小到大
-    grouplist=mer['group'].unique()
-    grouplist = grouplist.tolist()
-    y=pd.DataFrame()
-    for i in grouplist:
-        y[i]=mer[mer['group']==i].groupby('time')['ret'].mean()
-    y=y.sort_index(axis=1)
-    y['mean']=mer.groupby('time')['ret'].mean()
+    mer = x.merge(groupdata, on=['time', 'code'])  # True是从小到大
+    y = mer.groupby(['time', 'group'])['ret'].mean().reset_index()
+    y = y.pivot(index='time', columns='group')
+    y.columns = y.columns.droplevel()
+    y['mean'] = mer.groupby('time')['ret'].mean()
     return y
 
     

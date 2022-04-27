@@ -133,6 +133,17 @@ def getSql(sql_req):
     db_oracle = cx_Oracle.connect(Oracle_userName, Oracle_password, dsn_tns)
     data = pd.read_sql(sql_req, con=db_oracle)
     return data
+
+def get_value(df,n):
+    '''很多因子计算时，会一次性生成很多值，使用时只取出一个值'''
+    def get_value_single(x,n):
+        try:
+            return x[n]
+        except Exception:
+            return np.nan
+    df=df.applymap(lambda x:get_value_single(x,n))
+    return df
+
 #计算最大回撤
 def maxDrawDown(Rev_seq):
     """
@@ -442,38 +453,38 @@ def dayToMonth(DF,factor_list='',method='last'):
     return x_tmp
 
 #多空t分组,并判断各股票的指标在哪一组
-def longshortfive(x,factor_name,asc=True,t=5):
+def isinGroupT(x,factor_name,asc=True,t=5):
     x = x.sort_values(factor_name, ascending=asc)
     z=x['ret']#True是从小到大
     num=z.count()
     div=int(num/t)
-    y=pd.Series([])
-    for i in range(t-1):
-        y[i+1]=z.iloc[div*i:div*(i+1)].mean()
-    y[t]=z.iloc[div*(t-1):].mean()
     x['group'] = 0
     for i in range(t - 1):
         x.iloc[div * i:div * (i + 1)]['group'] = i + 1
     x.iloc[div * (t - 1):]['group'] = t
     x = x[['time', 'code', 'group']].rename(columns={'group': factor_name})
     x['time'] = x['time'].astype(int)
-    return y,x
+    return x
 
 
-#筛选出每月指标最大的前k只股票(当k<1，改为筛选指标最大的前k%股票)，同时判断各股票的指标是否在前k（k%）
-def selecttopK(x,factor_name,asc=True,k=30):
-    z=x.sort_values(factor_name,ascending=asc)['ret']#True是从小到大
-    y=pd.Series([])
-    num=int(x.shape[0]*k) if k<1 else k
-    y['up']=z.iloc[:num].mean()
-    y['down']=z.iloc[-num:].mean()
-    y['mean']=z.mean()
-
+#判断各股票的指标是否在前k（k%）
+def isinTopK(x,factor_name,asc=True,k=30):
+    num = int(x.shape[0] * k) if k < 1 else k
     x['rank'] = x[factor_name].rank(ascending=asc)
-    x['group'] = x['rank'].apply(lambda x: 1 if x <= num else 0)
+    x['group'] = x['rank'].apply(lambda y: 1 if y <= num else 0)
     w = x[['time', 'code', 'group']].rename(columns={'group': factor_name})
     w['time'] = w['time'].astype(int)
-    return y,w
+    return w
+
+def calcGroupRet(x,factor_name,groupdata):
+    groupdata = groupdata.rename(columns={factor_name: 'group'})
+    x['time'] = x['time'].astype(int)
+    mer = x.merge(groupdata, on=['time', 'code'])  # True是从小到大
+    y = mer.groupby(['time', 'group'])['ret'].mean().reset_index()
+    y = y.pivot(index='time', columns='group')
+    y.columns = y.columns.droplevel()
+    y['mean'] = mer.groupby('time')['ret'].mean()
+    return y
 
     
 #取残差

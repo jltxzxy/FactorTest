@@ -76,11 +76,12 @@ class FactorTest():
             RetData=setStockPool(RetData,self.filterStockDF)
         for facname in factorlist:
             Mer=self.FactorDataBase[['time','code',facname]].merge(RetData,on=['time','code'],how='outer').dropna()
-            ls_ret = Mer.groupby('time').apply(lambda x: longshortfive(x, facname, asc=asc, t=t)[0]).dropna()
+            isingroupt = Mer.groupby('time').apply(lambda x: isinGroupT(x, facname, asc=asc, t=t)).reset_index(drop=True)
+            ls_ret = calcGroupRet(Mer,facname,isingroupt).dropna()
             ls_ret['多空组合'] = ls_ret[1] - ls_ret[t]  # 第一组-第五组
-            isingroupt = Mer.groupby('time').apply(lambda x: longshortfive(x, facname, asc=asc, t=t)[1]).reset_index(drop=True)
+            if (facname in self.portfolioGroup.columns):  # 如果重复则先删除信息再重新载入
+                self.portfolioGroup = self.portfolioGroup.drop(columns=facname)
             self.portfolioGroup = self.portfolioGroup.merge(isingroupt, on=['time', 'code'], how='outer').dropna()
-
             self.portfolioList[facname]=ls_ret
             self.portfolioAns[facname]=evaluatePortfolioRet(ls_ret[1]-ls_ret[t])
             self.annualTurnover[facname] = calcAnnualTurnover(self.portfolioGroup, facname)
@@ -90,14 +91,10 @@ class FactorTest():
                 ls_ret1['time']=ls_ret1['time'].apply(lambda x:str(x))
                 ls_ret1.set_index('time').apply(lambda x:x+1).cumprod().plot()
                 print(self.portfolioAns[facname])
-                print('年化换手率:')
-                print(self.annualTurnover[facname])
             plt.show()
         if(len(factorlist)>1):
             print(self.portfolioDF)
-            print('年化换手率:')
-            for keys in factorlist:
-                print(self.annualTurnover[keys])
+
         
     #常规测试流程
     def autotest(self,factorlist='',startMonth='',endMonth='',t=5,asc=True):
@@ -130,24 +127,22 @@ class FactorTest():
         for facname in factorlist:
             Mer=factorDB[['time','code',facname]].merge(RetData,on=['time','code'],how='outer').dropna()
             Mer['time']=Mer['time'].apply(lambda x:str(x))
-            topk_list = Mer.groupby('time').apply(lambda x: selecttopK(x, facname, asc, k=k)[0]).reset_index()
-            isintopk = Mer.groupby('time').apply(lambda x: selecttopK(x, facname, asc, k=k)[1]).reset_index(drop=True)
+            isintopk = Mer.groupby('time').apply(lambda x: isinTopK(x, facname, asc, k=k)).reset_index(drop=True)
+            topk_list = calcGroupRet(Mer,facname,isintopk).reset_index()
+            if (facname in self.portfolioGroup.columns):  # 如果重复则先删除信息再重新载入
+                self.portfolioGroup = self.portfolioGroup.drop(columns=facname)
+            # portfoliogroup为1，表明按asc排序该股票的因子值在前k之内，为2表明因子值在倒数k个之内
             self.portfolioGroup = self.portfolioGroup.merge(isintopk, on=['time', 'code'], how='outer').fillna(0)
             self.portfolioList[facname]=topk_list
-            self.portfolioAns[facname]=evaluatePortfolioRet(topk_list['up'])
+            self.portfolioAns[facname]=evaluatePortfolioRet(topk_list[1])
             self.annualTurnover[facname] = calcAnnualTurnover(self.portfolioGroup, facname)
             if(len(factorlist)==1):
                 print(facname+':')
-                topk_list['up'].apply(lambda x:x+1).cumprod().plot()
+                topk_list[1].apply(lambda x:x+1).cumprod().plot()
                 print(self.portfolioAns[facname])
-                print('年化换手率:')
-                print(self.annualTurnover[facname])
             plt.show()
         if(len(factorlist)>1):
             print(self.portfolioDF)
-            print('年化换手率:')
-            for keys in factorlist:
-                print(self.annualTurnover[keys])
 
 
     def calcFutureRet(self,factorlist='',startMonth='',endMonth='',L=36,t=5,asc=True):

@@ -77,7 +77,7 @@ class FactorTest():
         for facname in factorlist:
             Mer=self.FactorDataBase[['time','code',facname]].merge(RetData,on=['time','code'],how='outer').dropna()
             isingroupt = Mer.groupby('time').apply(lambda x: isinGroupT(x, facname, asc=asc, t=t)).reset_index(drop=True)
-            ls_ret = Mer.groupby('time').apply(lambda x: longshortfive(x, facname, isingroupt, t=t)).dropna()
+            ls_ret = calcGroupRet(Mer,facname,isingroupt).dropna()
             ls_ret['多空组合'] = ls_ret[1] - ls_ret[t]  # 第一组-第五组
             if (facname in self.portfolioGroup.columns):  # 如果重复则先删除信息再重新载入
                 self.portfolioGroup = self.portfolioGroup.drop(columns=facname)
@@ -128,17 +128,17 @@ class FactorTest():
             Mer=factorDB[['time','code',facname]].merge(RetData,on=['time','code'],how='outer').dropna()
             Mer['time']=Mer['time'].apply(lambda x:str(x))
             isintopk = Mer.groupby('time').apply(lambda x: isinTopK(x, facname, asc, k=k)).reset_index(drop=True)
-            topk_list = Mer.groupby('time').apply(lambda x: selecttopK(x, facname, isintopk)).reset_index()
+            topk_list = calcGroupRet(Mer,facname,isintopk).reset_index()
             if (facname in self.portfolioGroup.columns):  # 如果重复则先删除信息再重新载入
                 self.portfolioGroup = self.portfolioGroup.drop(columns=facname)
             # portfoliogroup为1，表明按asc排序该股票的因子值在前k之内，为2表明因子值在倒数k个之内
             self.portfolioGroup = self.portfolioGroup.merge(isintopk, on=['time', 'code'], how='outer').fillna(0)
             self.portfolioList[facname]=topk_list
-            self.portfolioAns[facname]=evaluatePortfolioRet(topk_list['up'])
+            self.portfolioAns[facname]=evaluatePortfolioRet(topk_list[1])
             self.annualTurnover[facname] = calcAnnualTurnover(self.portfolioGroup, facname)
             if(len(factorlist)==1):
                 print(facname+':')
-                topk_list['up'].apply(lambda x:x+1).cumprod().plot()
+                topk_list[1].apply(lambda x:x+1).cumprod().plot()
                 print(self.portfolioAns[facname])
             plt.show()
         if(len(factorlist)>1):

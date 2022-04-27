@@ -466,34 +466,27 @@ def isinGroupT(x,factor_name,asc=True,t=5):
     x['time'] = x['time'].astype(int)
     return x
 
-def longshortfive(x,factor_name,groupdata,t=5):
-    groupdata = groupdata.rename(columns={factor_name: 'group'})
-    x['time'] = x['time'].astype(int)
-    mer = x.merge(groupdata, on=['time', 'code'])
-    y = pd.Series([])
-    for i in range(t):
-        y[i + 1] = mer[mer['group']==i+1]['ret'].mean()
-    return y
-
 
 #判断各股票的指标是否在前k（k%）
 def isinTopK(x,factor_name,asc=True,k=30):
     num = int(x.shape[0] * k) if k < 1 else k
     x['rank'] = x[factor_name].rank(ascending=asc)
-    x['group'] = x['rank'].apply(lambda y: 1 if y <= num else 2 if y>x.shape[0]-num else 0)
+    x['group'] = x['rank'].apply(lambda y: 1 if y <= num else 0)
     w = x[['time', 'code', 'group']].rename(columns={'group': factor_name})
     w['time'] = w['time'].astype(int)
     return w
 
-#筛选出每月指标最大的前k只股票(当k<1，改为筛选指标最大的前k%股票)
-def selecttopK(x,factor_name,groupdata):
-    groupdata = groupdata.rename(columns={factor_name: 'group'})
+def calcGroupRet(x,factor_name,groupdata):
+    groupdata=groupdata.rename(columns={factor_name:'group'})
     x['time'] = x['time'].astype(int)
-    mer = x.merge(groupdata, on=['time', 'code'])  # True是从小到大
-    y=pd.Series([])
-    y['up']=mer[mer['group']==1]['ret'].mean()
-    y['down']=mer[mer['group']==2]['ret'].mean()
-    y['mean']=mer['ret'].mean()
+    mer=x.merge(groupdata,on=['time','code'])#True是从小到大
+    grouplist=mer['group'].unique()
+    grouplist = grouplist.tolist()
+    y=pd.DataFrame()
+    for i in grouplist:
+        y[i]=mer[mer['group']==i].groupby('time')['ret'].mean()
+    y=y.sort_index(axis=1)
+    y['mean']=mer.groupby('time')['ret'].mean()
     return y
 
     

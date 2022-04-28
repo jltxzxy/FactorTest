@@ -475,7 +475,7 @@ def isinTopK(x,factor_name,asc=True,k=30):
     x['time'] = x['time'].astype(int)
     return x
 
-#筛选出每月指标最大的前k只股票(当k<1，改为筛选指标最大的前k%股票)
+#计算各组平均收益
 def calcGroupRet(x):
     x['time'] = x['time'].astype(int)
     y = x.groupby(['time', 'group'])['ret'].mean().reset_index()

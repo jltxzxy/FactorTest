@@ -462,7 +462,6 @@ def isinGroupT(x,factor_name,asc=True,t=5):
     for i in range(t - 1):
         x.iloc[div * i:div * (i + 1)]['group'] = i + 1
     x.iloc[div * (t - 1):]['group'] = t
-    x = x[['time', 'code', 'group']].rename(columns={'group': factor_name})
     x['time'] = x['time'].astype(int)
     return x
 
@@ -472,18 +471,17 @@ def isinTopK(x,factor_name,asc=True,k=30):
     num = int(x.shape[0] * k) if k < 1 else k
     x['rank'] = x[factor_name].rank(ascending=asc)
     x['group'] = x['rank'].apply(lambda y: 1 if y <= num else 0)
-    w = x[['time', 'code', 'group']].rename(columns={'group': factor_name})
-    w['time'] = w['time'].astype(int)
-    return w
-
-def calcGroupRet(x,factor_name,groupdata):
-    groupdata = groupdata.rename(columns={factor_name: 'group'})
+    x=x.drop(columns='rank')
     x['time'] = x['time'].astype(int)
-    mer = x.merge(groupdata, on=['time', 'code'])  # True是从小到大
-    y = mer.groupby(['time', 'group'])['ret'].mean().reset_index()
+    return x
+
+#筛选出每月指标最大的前k只股票(当k<1，改为筛选指标最大的前k%股票)
+def calcGroupRet(x):
+    x['time'] = x['time'].astype(int)
+    y = x.groupby(['time', 'group'])['ret'].mean().reset_index()
     y = y.pivot(index='time', columns='group')
     y.columns = y.columns.droplevel()
-    y['mean'] = mer.groupby('time')['ret'].mean()
+    y['mean']=x.groupby('time')['ret'].mean()
     return y
 
     

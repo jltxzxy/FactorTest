@@ -76,12 +76,12 @@ class FactorTest():
             RetData=setStockPool(RetData,self.filterStockDF)
         for facname in factorlist:
             Mer=self.FactorDataBase[['time','code',facname]].merge(RetData,on=['time','code'],how='outer').dropna()
-            isingroupt = Mer.groupby('time').apply(lambda x: isinGroupT(x, facname, asc=asc, t=t)).reset_index(drop=True)
-            ls_ret = calcGroupRet(Mer,facname,isingroupt).dropna()
+            Mer = Mer.groupby('time').apply(lambda x: isinGroupT(x, facname, asc=asc, t=t)).reset_index(drop=True)
+            ls_ret = calcGroupRet(Mer).dropna()
             ls_ret['多空组合'] = ls_ret[1] - ls_ret[t]  # 第一组-第五组
             if (facname in self.portfolioGroup.columns):  # 如果重复则先删除信息再重新载入
                 self.portfolioGroup = self.portfolioGroup.drop(columns=facname)
-            self.portfolioGroup = self.portfolioGroup.merge(isingroupt, on=['time', 'code'], how='outer').dropna()
+            self.portfolioGroup = self.portfolioGroup.merge(Mer[['time','code','group']].rename(columns={'group':facname}), on=['time', 'code'], how='outer').dropna()
             self.portfolioList[facname]=ls_ret
             self.portfolioAns[facname]=evaluatePortfolioRet(ls_ret[1]-ls_ret[t])
             self.annualTurnover[facname] = calcAnnualTurnover(self.portfolioGroup, facname)
@@ -127,12 +127,12 @@ class FactorTest():
         for facname in factorlist:
             Mer=factorDB[['time','code',facname]].merge(RetData,on=['time','code'],how='outer').dropna()
             Mer['time']=Mer['time'].apply(lambda x:str(x))
-            isintopk = Mer.groupby('time').apply(lambda x: isinTopK(x, facname, asc, k=k)).reset_index(drop=True)
-            topk_list = calcGroupRet(Mer,facname,isintopk).reset_index()
+            Mer = Mer.groupby('time').apply(lambda x: isinTopK(x, facname, asc, k=k)).reset_index(drop=True)
+            topk_list = calcGroupRet(Mer).reset_index()
             if (facname in self.portfolioGroup.columns):  # 如果重复则先删除信息再重新载入
                 self.portfolioGroup = self.portfolioGroup.drop(columns=facname)
             # portfoliogroup为1，表明按asc排序该股票的因子值在前k之内，为2表明因子值在倒数k个之内
-            self.portfolioGroup = self.portfolioGroup.merge(isintopk, on=['time', 'code'], how='outer').fillna(0)
+            self.portfolioGroup = self.portfolioGroup.merge(Mer[['time','code','group']].rename(columns={'group':facname}), on=['time', 'code'], how='outer').fillna(0)
             self.portfolioList[facname]=topk_list
             self.portfolioAns[facname]=evaluatePortfolioRet(topk_list[1])
             self.annualTurnover[facname] = calcAnnualTurnover(self.portfolioGroup, facname)

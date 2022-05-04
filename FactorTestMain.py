@@ -16,6 +16,7 @@ class FactorTest():
         self.portfolioAns={}
         self.portfolioGroup = pd.DataFrame(columns=['time', 'code'])
         self.annualTurnover = {}
+        pd.options.mode.use_inf_as_na = True  #剔除inf
         
     def getFactor(self,Factor):
         #考虑：频率统一为月度 ,sql型数据
@@ -60,7 +61,7 @@ class FactorTest():
         if(len(factorlist)>1):
             print(self.ICDF)
 
-    def calcLongShort(self,factorlist='',startMonth='',endMonth='',t=5,asc=True):
+    def calcLongShort(self,factorlist='',startMonth='',endMonth='',t=5,asc=''):
         if(factorlist==''):
             factorlist=self.factorlist
         if(type(factorlist)==str):
@@ -76,12 +77,19 @@ class FactorTest():
             RetData=setStockPool(RetData,self.filterStockDF)
         for facname in factorlist:
             Mer=self.FactorDataBase[['time','code',facname]].merge(RetData,on=['time','code'],how='outer').dropna()
-            Mer = Mer.groupby('time').apply(lambda x: isinGroupT(x, facname, asc=asc, t=t)).reset_index(drop=True)
-            ls_ret = calcGroupRet(Mer).dropna()
+            if(asc!=''):
+                ascloc=asc
+            else:
+                ascloc=False
+                if(facname in self.ICAns):
+                    if(self.ICAns[facname]['IC:']<0):
+                        ascloc=True
+            Mer = Mer.groupby('time').apply(lambda x: isinGroupT(x, facname, asc=ascloc, t=t)).reset_index(drop=True)
+            ls_ret = calcGroupRet(Mer,facname).dropna()
             ls_ret['多空组合'] = ls_ret[1] - ls_ret[t]  # 第一组-第五组
             if (facname in self.portfolioGroup.columns):  # 如果重复则先删除信息再重新载入
                 self.portfolioGroup = self.portfolioGroup.drop(columns=facname)
-            self.portfolioGroup = self.portfolioGroup.merge(Mer[['time','code','group']].rename(columns={'group':facname}), on=['time', 'code'], how='outer').dropna()
+            self.portfolioGroup = self.portfolioGroup.merge(Mer[['time','code',facname]], on=['time', 'code'], how='outer').dropna()
             self.portfolioList[facname]=ls_ret
             self.portfolioAns[facname]=evaluatePortfolioRet(ls_ret[1]-ls_ret[t])
             self.annualTurnover[facname] = calcAnnualTurnover(self.portfolioGroup, facname)
@@ -97,12 +105,12 @@ class FactorTest():
 
         
     #常规测试流程
-    def autotest(self,factorlist='',startMonth='',endMonth='',t=5,asc=True):
+    def autotest(self,factorlist='',startMonth='',endMonth='',t=5,asc=''):
         self.calcIC(factorlist,startMonth,endMonth)
         self.calcLongShort(factorlist,startMonth,endMonth,t,asc)
         
     #计算按因子值排名前K
-    def calcTopK(self,factorlist='',startMonth='',endMonth='',k=30,asc=True,base=''):
+    def calcTopK(self,factorlist='',startMonth='',endMonth='',k=30,asc='',base=''):
         if(factorlist==''):
             factorlist=self.factorlist
         if(type(factorlist)==str):
@@ -126,13 +134,19 @@ class FactorTest():
 
         for facname in factorlist:
             Mer=factorDB[['time','code',facname]].merge(RetData,on=['time','code'],how='outer').dropna()
-            Mer['time']=Mer['time'].apply(lambda x:str(x))
-            Mer = Mer.groupby('time').apply(lambda x: isinTopK(x, facname, asc, k=k)).reset_index(drop=True)
-            topk_list = calcGroupRet(Mer).reset_index()
+            if(asc!=''):
+                ascloc=asc
+            else:
+                ascloc=False
+                if(facname in self.ICAns):
+                    if(self.ICAns[facname]['IC:']<0):
+                        ascloc=True
+            Mer = Mer.groupby('time').apply(lambda x: isinTopK(x, facname, ascloc, k=k)).reset_index(drop=True)
+            topk_list = calcGroupRet(Mer,facname).reset_index()
             if (facname in self.portfolioGroup.columns):  # 如果重复则先删除信息再重新载入
                 self.portfolioGroup = self.portfolioGroup.drop(columns=facname)
             # portfoliogroup为1，表明按asc排序该股票的因子值在前k之内，为2表明因子值在倒数k个之内
-            self.portfolioGroup = self.portfolioGroup.merge(Mer[['time','code','group']].rename(columns={'group':facname}), on=['time', 'code'], how='outer').fillna(0)
+            self.portfolioGroup = self.portfolioGroup.merge(Mer[['time','code',facname]], on=['time', 'code'], how='outer').fillna(0)
             self.portfolioList[facname]=topk_list
             self.portfolioAns[facname]=evaluatePortfolioRet(topk_list[1])
             self.annualTurnover[facname] = calcAnnualTurnover(self.portfolioGroup, facname)
@@ -145,7 +159,7 @@ class FactorTest():
             print(self.portfolioDF)
 
 
-    def calcFutureRet(self,factorlist='',startMonth='',endMonth='',L=36,t=5,asc=True):
+    def calcFutureRet(self,factorlist='',startMonth='',endMonth='',L=36,t=5,asc=''):
         '''
         Parameters
         ----------
@@ -171,17 +185,24 @@ class FactorTest():
         RetData=self.retData.pivot(index='time',columns='code',values='ret')
         self.FutureRet=pd.DataFrame(columns=factorlist)
         RetData=RetData.apply(lambda x:np.log(x+1))
-        for i in range(1,L+1):
+        for i in tqdm(range(1,L+1)):
             Ret_loc=RetData.rolling(window=i).sum().apply(lambda x:np.e**x-1).shift(-1*i+1).dropna(how='all').stack().reset_index()
             Ret_loc.columns=['time','code','ret']
             Ret_loc=Ret_loc[Ret_loc.time>=startMonth]
             Ret_loc=Ret_loc[Ret_loc.time<=endMonth]
             if(type(self.filterStockDF)==pd.DataFrame):
                 Ret_loc=setStockPool(RetData,self.filterStockDF)
-            
             for facname in factorlist:
+                if(asc!=''):
+                    ascloc=asc
+                else:
+                    ascloc=False
+                    if(facname in self.ICAns):
+                        if(self.ICAns[facname]['IC:']<0):
+                            ascloc=True
                 Mer=self.FactorDataBase[['time','code',facname]].merge(Ret_loc,on=['time','code'],how='outer').dropna()        
-                ls_ret=Mer.groupby('time').apply(longshortfive,facname,asc=asc,t=t).dropna()
+                Mer=Mer.groupby('time').apply(isinGroupT,facname,asc=ascloc,t=t).reset_index(drop=True)
+                ls_ret=calcGroupRet(Mer,facname).reset_index()
                 self.FutureRet.loc[i,facname]=(ls_ret[1]-ls_ret[t]).mean()#第一组-第五组
         self.FutureRet.plot()
     #双分组，打印热力图、想一想如何返回值
@@ -212,14 +233,18 @@ class FactorTest():
         for i in range(len(self.factorlist)):
             for j in  range(len(self.factorlist)):    
                 if(i<j):
-                     fac=self.FactorwDataBase[['time','code',self.factorlist[i],self.factorlist[j]]]
-                     fac=fac.groupby('time').apply(lambda x:CorType(x[self.factorlist[i]],x[self.factorlist[j]])[0])
-                     self.factorCorr.loc[self.factorlist[i],self.factorlist[j]]=fac.mean()
-                     self.ICCorr.loc[self.factorlist[i],self.factorlist[j]]=CorType(self.ICList[self.factorlist[i]],self.ICList[self.factorlist[j]])[0]
+                    fac=self.FactorDataBase[['time','code',self.factorlist[i],self.factorlist[j]]].dropna()
+                    fac=fac.groupby('time').apply(lambda x:CorType(x[self.factorlist[i]],x[self.factorlist[j]])[0])
+                    self.factorCorr.loc[self.factorlist[i],self.factorlist[j]]=fac.mean()
+                    if(self.factorlist[i] in self.ICList and self.factorlist[j] in self.ICList):
+                        A=pd.DataFrame(self.ICList[self.factorlist[i]],columns=[1])
+                        A[2]=self.ICList[self.factorlist[j]]
+                        A=A.dropna()
+                        self.ICCorr.loc[self.factorlist[i],self.factorlist[j]]=CorType(A[1],A[2])[0]
         print('因子相关性:')
         print(self.factorCorr)
         print('IC相关性：')
-        print(self.ICCorr)
+        print(self.ICCorr.dropna(how='all').dropna(how='all',axis=1))
     #测试与Barra因子
     def calcCorrBarra(self,factorlist=''):
         if(factorlist==''):

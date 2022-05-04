@@ -23,6 +23,7 @@ warnings.filterwarnings('ignore')
 import datetime
 import zipfile
 import shutil
+import pyfinance.ols as po
 
 #设置图片保存格式和字体
 import matplotlib as mpl
@@ -155,10 +156,12 @@ def maxDrawDown(Rev_seq):
     Rev_list=(Rev_seq+1).cumprod()
     return (Rev_list/Rev_list.cummax()-1).min()
 #修改——自动多样式
-def to_time(x,timetype='%Y%m%d'):
-    return pd.Series(x).apply(lambda x:datetime.datetime.strptime(str(int(x)),timetype))
+def toTime(x):
+    return pd.Series(x).apply(lambda x:pd.to_datetime(str(int(x))))
+def fromTime(x):
+    return pd.Series(x).apply(lambda x:int(x.strftime('%Y%m%d')))
 #回归：x可以选择是否加截距项
-def regress(y,x,con=True):
+def regress(y,x,con=True,weight=1):
     """
     回归——注意不能出现空值
     @param y:   应变量
@@ -170,11 +173,8 @@ def regress(y,x,con=True):
     from statsmodels.stats.outliers_influence import summary_table # 获得汇总信息
     if(con):
         x=sm.add_constant(x)
-    regr = sm.OLS(y, x) # 普通最小二乘模型，ordinary least square model
+    regr = sm.WLS(y, x,weight=weight) # 加权最小二乘模型，ordinary least square model
     res = regr.fit()    #res.model.endog
-    # 从模型获得拟合数据
-    st, data, ss2 = summary_table(res, alpha=0.05) # 置信水平alpha=5%，st数据汇总，data数据详情，ss2数据列名
-    fitted_values = data[:,2]  #等价于res.fittedvalues
     return res
 #更新数据 获得最新交易日历、计算收益序列数据  输出到一张表中：各指标最新日期
 def updateStockDailyRet():
@@ -441,7 +441,7 @@ def dayToMonth(DF,factor_list='',method='last'):
             x1=x1.groupby('time').sum().stack().reset_index()
             x1.columns=['time','code',fac]
         elif(method=='last'):
-            x1=x1.groupby('time').apply(lambda x:x.iloc[-1]).set_index('time').stack().reset_index()
+            x1=x1.groupby('time').apply(lambda x:x.ffill().iloc[-1]).set_index('time').stack().reset_index()
             x1['time']=x1['time'].apply(lambda x:int(x))
             x1.columns=['time','code',fac]
         elif(method=='mean'):
@@ -454,42 +454,50 @@ def dayToMonth(DF,factor_list='',method='last'):
 
 #多空t分组,并判断各股票的指标在哪一组
 def isinGroupT(x,factor_name,asc=True,t=5):
-    x = x.sort_values(factor_name, ascending=asc)
-    z=x['ret']#True是从小到大
-    num=z.count()
-    div=int(num/t)
-    x['group'] = 0
-    for i in range(t - 1):
-        x.iloc[div * i:div * (i + 1)]['group'] = i + 1
-    x.iloc[div * (t - 1):]['group'] = t
-    x['time'] = x['time'].astype(int)
+    x[factor_name]=pd.qcut(x[factor_name], t,labels=False)+1
+    if(asc==False):
+        x[factor_name]=t-x[factor_name]+1
     return x
-
 
 #判断各股票的指标是否在前k（k%）
 def isinTopK(x,factor_name,asc=True,k=30):
     num = int(x.shape[0] * k) if k < 1 else k
-    x['rank'] = x[factor_name].rank(ascending=asc)
-    x['group'] = x['rank'].apply(lambda y: 1 if y <= num else 0)
-    x=x.drop(columns='rank')
-    x['time'] = x['time'].astype(int)
-    return x
+    if(x.shape[0]<k):
+        x[factor_name]=0
+        return x
+    x[factor_name] = x[factor_name].rank(ascending=asc)
+    x[factor_name] = x[factor_name].apply(lambda y: 1 if y <= num else 0)
+    return x[['time', 'code', factor_name,'ret']]
 
-#计算各组平均收益
-def calcGroupRet(x):
+def calcGroupRet(x,factor_name):
     x['time'] = x['time'].astype(int)
-    y = x.groupby(['time', 'group'])['ret'].mean().reset_index()
-    y = y.pivot(index='time', columns='group')
+    y = x.groupby(['time', factor_name])['ret'].mean().reset_index()
+    y = y.pivot(index='time', columns=factor_name)
     y.columns = y.columns.droplevel()
-    y['mean']=x.groupby('time')['ret'].mean()
+    #y['mean'] = mer.groupby('time')['ret'].mean()
     return y
 
     
 #取残差
-def calcResid(y,x1):
-    beta=np.linalg.pinv(x1.T.dot(x1)).dot(x1.T).dot(y)
-    y_pred=beta.dot(x1.T)
-    resid=y-y_pred
+def calcResid(y,x,intercept=True,retBeta=False):
+    '''
+       x、y必须是DataFrame 格式，不能是Series
+       用公式快速求解，需要更多信息用FB.regress
+       retBeta='True'
+    '''    
+    x=pd.DataFrame(x).reset_index(drop=True)
+    y=pd.DataFrame(y).reset_index(drop=True)
+    if(intercept==True):
+        x['intercept']=1
+    x['y']=y
+    x=x.dropna()
+    y1=np.matrix(x[['y']])
+    x1=np.matrix(x.drop(columns='y'))
+    beta=np.linalg.pinv(x1.T.dot(x1)).dot(x1.T).dot(y1)
+    y_pred=x1*beta
+    resid=y1-y_pred
+    if(retBeta):
+        return {'beta':pd.DataFrame(beta,index=pd.Series(x.drop(columns='y').columns))[0],'resid':resid}
     return resid
 
 #加入sw行业
@@ -536,7 +544,7 @@ def RegbyindSize(x,name):
     if(x_tmp.shape[0]==0):
         x[name+'_neu']=np.nan
         return x
-    y=x_tmp[name]
+    y=x_tmp[[name]]
     x1=x_tmp[['CMV']]
     for ind in x['SWind'].unique():
         x_tmp[ind]=0
@@ -559,6 +567,39 @@ def calcNeuIndSize(factor,factor_name):
     factor=factor.merge(factor_tmp[['time','code',factor_name+'_neu']],on=['time','code'])
     return factor
 
+
+
+def RegbySize(x,name):
+    #代码补齐
+    def zscore(x):
+        return (x-x.dropna().mean())/x.dropna().std()
+    x_tmp=x[['time','code',name,'CMV']]
+    x_tmp['CMV']=zscore(deMAD(x_tmp,'CMV')['CMV']).fillna(0)
+    x_tmp=x_tmp.dropna()    
+    if(x_tmp.shape[0]==0):
+        x[name+'_neu']=np.nan
+        return x
+    y=x_tmp[[name]]
+    x1=x_tmp[['CMV']]
+    x1['const']=1    
+    x_tmp[name+'_neu']=calcResid(y, x1)
+    x=x.merge(x_tmp[['code',name+'_neu']],on='code',how='outer')
+    return x
+
+#计算市值中性
+def calcNeuSize(factor,factor_name):
+    factor_tmp=factor.copy()
+    if('CMV' not in factor):
+        factor_tmp=addXSize(factor_tmp)
+    if(factor_name+'_neu' in factor_tmp):
+        del factor_tmp[factor_name+'_neu']
+    factor_tmp=factor_tmp.groupby('time').apply(RegbySize,factor_name).reset_index(drop=True)
+    factor=factor.merge(factor_tmp[['time','code',factor_name+'_neu']],on=['time','code'])
+    return factor
+
+
+
+
 def addXBarra(DF,Barra_list=''):
     barra_tmp=dayToMonth(getBarraData())
     if(Barra_list==''):
@@ -578,7 +619,7 @@ def RegbyBarra(x,name,factor_list):
     if(x_tmp.shape[0]==0):
         x[name+'_pure']=np.nan
         return x
-    y=x_tmp[name]
+    y=x_tmp[[name]]
     x1=x_tmp[factor_list]
     for ind in x['SWind'].unique():
         x_tmp[ind]=0
@@ -664,6 +705,33 @@ def copyFile(file_path,target_path):
         shutil.copy(file_path, target_path+'//'+ fname)          
 
 
+def _calcGrowthRate(x,t=3):
+    ols=po.PandasRollingOLS(y=pd.DataFrame(x),x=pd.DataFrame(np.arange(1, len(x)+1)),use_const=True,window=t)
+    return pd.Series(ols.beta[0]/x.abs().rolling(window=t).mean(),name=x.name)
+#计算过去windows年成长率
+def calcGrowthRate(data,window=3):
+    '''
+    计算年化复合变化率  (同比)
+    计算公式 regress(data,(1,2,...),intercept=True).beta / y.abs().mean()
+    Parameters
+    ----------
+    data:矩阵形式
+    window ：窗口期（年）默认为3
+    -------
+    返回矩阵，每一个值为变化率
+
+    '''
+    
+    tmp=data.dropna(how='all').reset_index()
+    tmp['season']=tmp['time'].apply(lambda x:str(x)[-4:])
+    tmp=tmp.set_index('time')
+    tqdm.pandas()
+    tmp1=tmp.groupby('season')
+    ans=[]
+    for i in tqdm(tmp.season.unique()):
+        ans.append(tmp1.get_group(i).drop(columns='season').apply(_calcGrowthRate))
+    tmp=pd.concat(ans).sort_index()
+    return tmp
 
 def copyFiles(A,B,cover=True):#A为源文件路径B为新文件路径
     source_path= os.path.abspath(A)
@@ -969,22 +1037,66 @@ def transData(data,key='factor',ANN_DT='BasicFactor_AShareFinancialIndicator_ANN
         return factorDF
 
 def calc_plot(DF):
-    DF=DF.reset_index()
-    DF['time']=DF['time'].astype('str')
-    DF.set_index('time').plot()
-    
+    # DF=DF.reset_index()
+    # DF['time']=DF['time'].apply(toTime)
+    # DF.set_index('time').plot()
+    applyindex(toTime,DF).plot()
 def calcFisicalLYR(DF):
+    '''
+    矩阵型  转为上年末数据
+    '''
     DF=DF.loc[getFisicalList('year')].fillna('empty').reindex(getFisicalList()).ffill()
     DF[DF=='empty']=np.nan
     return DF
 
 def calcFisicalq(DF):
+    '''
+    矩阵型  转为单季度数据
+    '''
     DFlast=DF.copy()
     DFlast.loc[getFisicalList('year')]=0
     DFlast=DFlast.shift(1)
     return (DF-DFlast)
 
 
-def calcFisicalttm(DF):
+def calcFisicalttm(DF):    
+    '''
+    矩阵型  转为ttm数据
+    '''
     DFq=calcFisicalq(DF)
     return DFq.rolling(window=4).sum()
+
+def applyindex(func,x):
+    '''
+       直接对DataFrame或Series 对index执行func
+    '''
+    if(x.index.name==None):
+        x.index.name='index'
+    xname=x.index.name
+    x=x.reset_index()
+    x[xname]=x[xname].apply(func)
+    return x.set_index(xname)
+# 半衰期序列
+def calc_exp_list(window,half_life):
+    exp_wt = np.asarray([0.5 ** (1 / half_life)] * window) ** np.arange(window)
+    return exp_wt[::-1] / np.sum(exp_wt)
+
+
+#weighted_std
+def calcWeightedStd(series, weights):
+    '''
+       加权平均
+    '''
+    weights /= np.sum(weights)
+    return np.sqrt(np.sum((series-np.mean(series)) ** 2 * weights))
+def calcWeightedMean(series,weight):
+    return np.sum(series*weight)/np.sum(weight)
+
+#滚动回归(待完善)
+def rollingRegress(y,x,window,const=True):
+    try:
+        ols=po.PandasRollingOLS(y,x,hasconst=const,window=window)
+        return pd.concat([alpha,beta],axis=1)
+    except:
+        ...
+        

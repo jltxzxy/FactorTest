@@ -1242,16 +1242,18 @@ class dataProcess():
             
     #横截面回归取残差，速度慢尽量月频
     def AregBResid(self,yname,xname,rname='resid'):
-        if(type(yname)=='str'):
-            yname=list(yname)
-        if(type(xname)=='str'):
-            xname=list(xname)
+        if(type(yname)==str):
+            yname=[yname]
+        if(type(xname)==str):
+            xname=[xname]
         datagroup=self.dataBase['v'].groupby('time')
         Ans=[]
         for date in tqdm(self.dataBase['v'].time.unique()):
-            data_loc=datagroup.get_group(date).dropna()
+            data_raw=datagroup.get_group(date)
+            data_loc=data_raw.dropna(subset=yname+xname)
             data_loc[rname]=calcResid(data_loc[yname], data_loc[xname])
-            Ans.append(data_loc)
+            data_raw[rname]=data_loc[rname]
+            Ans.append(data_raw)
         self.tmp=Ans
         self.dataBase['v']=pd.concat(Ans)
         self.latestname=rname

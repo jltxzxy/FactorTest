@@ -43,7 +43,7 @@ def AShareFinancialIndicator(infoDF):
 #sw指数成分股
 def AShareSWIndustriesClass(infoDF):
     starttime=FB.getUpdateStartTime(infoDF['最新时间'])
-    sqlData=FB.getSql('select S_INFO_WINDCODE,SW_IND_CODE,ENTRY_DT,REMOVE_DT from wind.AShareSWIndustriesClass where ENTRY_DT>='+str(int(starttime)))
+    sqlData=FB.getSql('select S_INFO_WINDCODE,SW_IND_CODE,ENTRY_DT,REMOVE_DT from wind.AShareSWNIndustriesClass where ENTRY_DT>='+str(int(starttime)))
     sqlData.columns=['code',infoDF['数据库键'].iloc[0],'time','eddate']
     FB.saveIndData(sqlData,infoDF)
 

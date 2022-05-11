@@ -228,7 +228,6 @@ def getStockList():
     return pd.Series(data.columns,name='code')
 #获取收益序列数据
 def getRetData():
-    # retData=pd.read_csv(filepathtestdata+'stockret.csv',usecols=[1,2,3]).dropna()
     retData=read_feather(Datapath+'stockret.txt').dropna()
     return retData
 
@@ -302,14 +301,32 @@ def getSWIndustryData(level=1,freq='day',fill=False):
     ind_data=ind_data.reindex(getTradeDateList()).fillna(method='ffill').stack().reset_index()
     return ind_data
 #加上行业数据列 
-def getSWIndustry(DF,level=1):
+def getSWIndustry(DF,level=1,freq='day'):
     """
         level 1 申万一级行业
     """
-    SWData=getSWIndustryData(level)
+    SWData=getSWIndustryData(level,freq)
     DF=DF.merge(SWData,on=['time','code'],how='left')
     return DF
 
+
+
+
+def getIndRetData():
+    ret=read_feather(Datapath+'BasicFactorSW_S_dq_Close.txt').set_index('time')
+    ret=ret.stack().reset_index()
+    ret.columns=['time','code','ret']
+    ret=dayToMonth(ret)
+    ret=ret.pipe(toShortForm).ffill()
+    ret=ret/ret.shift(1)-1
+    ret=ret.pipe(toLongForm)
+    def shift1(x):
+        x=int(x)-1
+        if(x%100==0):
+            x=x-88
+        return x  
+    ret['time']=ret['time'].apply(shift1)
+    return ret
 
 #合并大类行业  待改(直接改到数据更新模块)
 def industryAggregate(IndInfo):
@@ -327,6 +344,7 @@ def industryAggregate(IndInfo):
         IndInfo.loc[IndInfo['SW1']==ind,'IndC']=IndustryAggregationInfo[ind]
     del IndInfo['SW1']
     return IndInfo
+
 
 #读取barra因子
 def getBarraData(startdate='',enddate=''):
@@ -427,7 +445,7 @@ def getfactorname(x,L=['code','time']):
 def dayToMonth(DF,factor_list='',method='last'):
     """
     @param x:
-    @param method:{'last','mean','sum'}
+    @param method:{'first','last','mean','sum'}
     """
     x=DF.copy()
     if(factor_list==''):
@@ -446,6 +464,10 @@ def dayToMonth(DF,factor_list='',method='last'):
             x1.columns=['time','code',fac]
         elif(method=='mean'):
             x1=x1.groupby('time').mean().stack().reset_index()
+            x1.columns=['time','code',fac]
+        elif(method=='first'):
+            x1=x1.groupby('time').apply(lambda x:x.iloc[0]).set_index('time').stack().reset_index()
+            x1['time']=x1['time'].apply(lambda x:int(x))
             x1.columns=['time','code',fac]
         else:
             raise Exception('没有找到该方法')
@@ -467,15 +489,41 @@ def isinTopK(x,factor_name,asc=True,k=30):
         return x
     x[factor_name] = x[factor_name].rank(ascending=asc)
     x[factor_name] = x[factor_name].apply(lambda y: 1 if y <= num else 0)
-    return x[['time', 'code', factor_name,'ret']]
+    return x
 
-def calcGroupRet(x,factor_name):
-    x['time'] = x['time'].astype(int)
+def calcGroupRet(x,factor_name,RetData=getRetData()):
+    if(not('ret' in x.columns)):
+        x=x.merge(RetData,on=['time','code'])
     y = x.groupby(['time', factor_name])['ret'].mean().reset_index()
     y = y.pivot(index='time', columns=factor_name)
     y.columns = y.columns.droplevel()
     #y['mean'] = mer.groupby('time')['ret'].mean()
     return y
+
+
+#计算胜率、赔率
+def calcWRPL(x):
+    return pd.Series([x[x.ret>0].count().ret*1.0/x.count().ret,x[x.ret>0].mean().ret/x[x.ret<0].mean().ret*-0.1],index=['WR','PL'])
+def calcGroupWR(x,by='group',Retdata=getRetData()):
+    xname=x.name
+    if(not('ret' in x.columns)):
+        x=x.merge(RetData,on=['time','code'])
+    x['ret']=x['ret']-x['ret'].median()
+    x=x[x[by]!=0]
+    t=len(x[by].unique())
+    if(t==0):
+        return 0
+    if(t==1):
+        groupWeight=[1]
+    else:
+        groupWeight=[-1+i*(2.0/(t-1)) for i in range(t)]
+    Ans=x.groupby(by).apply(calcWRPL).sort_index(ascending=False)
+    Ans['w']=groupWeight
+    Ans.loc[Ans.w<0,'WR']=1-Ans.loc[Ans.w<0,'WR']
+    Ans.loc[Ans.w<0,'PL']=1/Ans.loc[Ans.w<0,'PL']
+    WR=(Ans['WR']*(Ans['w'].abs())).sum()/(Ans['w'].abs()).sum()
+    PL=(Ans['PL']*(Ans['w'].abs())).sum()/(Ans['w'].abs()).sum()
+    return pd.Series([WR,PL],name=xname,index=['WR','PL'])
 
     
 #取残差
@@ -497,8 +545,8 @@ def calcResid(y,x,intercept=True,retBeta=False):
     y_pred=x1*beta
     resid=y1-y_pred
     if(retBeta):
-        return {'beta':pd.DataFrame(beta,index=pd.Series(x.drop(columns='y').columns))[0],'resid':resid}
-    return resid
+        return {'beta':pd.DataFrame(beta,index=pd.Series(x.drop(columns='y').columns))[0],'resid':np.array(resid)}
+    return np.array(resid)
 
 #加入sw行业
 def addXSWindDum(DF):
@@ -564,6 +612,8 @@ def calcNeuIndSize(factor,factor_name):
     if(factor_name+'_neu' in factor_tmp):
         del factor_tmp[factor_name+'_neu']
     factor_tmp=factor_tmp.groupby('time').apply(RegbyindSize,factor_name).reset_index(drop=True)
+    if(factor_name+'_neu' in factor):
+        factor=factor.drop(columns=factor_name+'_neu')
     factor=factor.merge(factor_tmp[['time','code',factor_name+'_neu']],on=['time','code'])
     return factor
 
@@ -594,6 +644,8 @@ def calcNeuSize(factor,factor_name):
     if(factor_name+'_neu' in factor_tmp):
         del factor_tmp[factor_name+'_neu']
     factor_tmp=factor_tmp.groupby('time').apply(RegbySize,factor_name).reset_index(drop=True)
+    if(factor_name+'_neu' in factor):
+        factor=factor.drop(columns=factor_name+'_neu')
     factor=factor.merge(factor_tmp[['time','code',factor_name+'_neu']],on=['time','code'])
     return factor
 
@@ -637,6 +689,8 @@ def calcNeuBarra(factor,factor_name,factor_list=''):
     if(factor_name+'_pure' in factor_tmp):
         del factor_tmp[factor_name+'_pure']
     factor_tmp=factor_tmp.groupby('time').apply(RegbyBarra,factor_name,factor_list).reset_index(drop=True)
+    if(factor_name+'_pure' in factor):
+        factor=factor.drop(columns=factor_name+'_pure')
     factor=factor.merge(factor_tmp[['time','code',factor_name+'_pure']],on=['time','code'])
     return factor
 #计算IC ——spearmanr 方法
@@ -769,7 +823,7 @@ def calcAllFactorAns():
        if(datainfo.loc[i,'IC']<0):
            FacDF['多空组合']=FacDF['多空组合']*-1
        datainfo.loc[i,'多空年化收益']=evaluatePortfolioRet(FacDF['多空组合'])['年化收益率:']
-       datainfo.loc[i,'多空信息比率']=ArithmeticErrorevaluatePortfolioRet(FacDF['多空组合'])['信息比率:']
+       datainfo.loc[i,'多空信息比率']=evaluatePortfolioRet(FacDF['多空组合'])['信息比率:']
        FacDF['IC']=Test.ICList[datainfo.loc[i,'因子名称']]
        FacDF.columns=pd.Series(FacDF.columns).apply(lambda x:str(x))
        FacDF.reset_index().to_feather(Factorpath+'plotdata/'+datainfo.loc[i,'因子名称']+'.fth')
@@ -788,6 +842,7 @@ def evaluatePortfolioRet(Rev_seq,t=12):
     ret_maxloss=(Rev_list/Rev_list.cummax()-1).min()
     return pd.Series([ret_mean,ret_sharpe,ret_winrate,ret_maxloss],index=['年化收益率:','信息比率:','胜率:','最大回撤:'])
 
+#计算换手率
 def calcAnnualTurnover(GroupData,facname,t=12):
     groupdata=GroupData
     groupNum = groupdata[['time', 'code', facname]].groupby(['time', facname]).count().reset_index()
@@ -1040,7 +1095,7 @@ def calc_plot(DF):
     # DF=DF.reset_index()
     # DF['time']=DF['time'].apply(toTime)
     # DF.set_index('time').plot()
-    applyindex(toTime,DF).plot()
+    applyindex(lambda x:str(x),DF).plot()
 def calcFisicalLYR(DF):
     '''
     矩阵型  转为上年末数据
@@ -1054,10 +1109,9 @@ def calcFisicalq(DF):
     矩阵型  转为单季度数据
     '''
     DFlast=DF.copy()
-    DFlast.loc[getFisicalList('year')]=0
+    DFlast.loc[getFisicalList('year')[getFisicalList('year').isin(DFlast.index)]]=0
     DFlast=DFlast.shift(1)
     return (DF-DFlast)
-
 
 def calcFisicalttm(DF):    
     '''
@@ -1100,3 +1154,111 @@ def rollingRegress(y,x,window,const=True):
     except:
         ...
         
+def monthToDay(DF,factor_list=''):
+    '''
+
+    Parameters
+    ----------
+    DF : 
+        三列标准型.
+    factor_list : list, optional
+        需要转换的因子. The default is ''.
+
+    Returns
+    -------
+    三列标准型.
+
+    '''
+    x=DF.copy()
+    if(factor_list==''):
+        factor_list=getfactorname(x)
+    x=x.pivot(index='time',columns=['code'],values=factor_list)
+    
+    day=getTradeDateList()
+    day.name='day'
+    month=day.copy()
+    month.name='month'
+    month=month.apply(lambda x: int(str(x)[:6]))
+    time=pd.concat([day, month], axis=1)
+    time=time.drop_duplicates(subset=['month'], keep='last')  
+    
+    x_tmp=pd.DataFrame(index=['time','code']).T
+    for fac in factor_list:
+        x1=x[fac].reset_index()
+        x1=pd.merge(x1, time, left_on='time', right_on='month', how='outer').set_index('day').drop(['time','month'],axis=1)
+        x1=x1.reindex(day.values).fillna(method='ffill')
+        x1=x1.stack().reset_index()
+        x1.columns=['time','code',fac]
+        x_tmp=x_tmp.merge(x1,on=['time','code'],how='outer')
+    return x_tmp
+
+
+
+
+
+class dataProcess():
+    def __init__(self,DataBase=pd.DataFrame(columns=['time','code'])):
+        self.dataBase=DataBase
+        self.datalist=[]
+        self.latestname='all'
+        pd.options.mode.use_inf_as_na = True  #剔除inf
+
+    #返回最新值self. latest
+    def __call__(self,name='last'):
+        if(name=='last'):
+            self.lastestname
+        if(name!='all'):
+            return self.dataBase['v'][['time','code',name]]
+        else:
+            return self.dataBase['v']
+    #因子处理_等待废弃
+    def updateData(self,DataBase):
+        self.dataBase=DataBase
+    def getData(self,Data,name='factor'):
+        '''
+           如果输入矩阵，请填写name
+           否则请输入sql型
+        '''
+        if(Data.index.name=='time'):
+            Data=toLongForm(Data)
+            Data.columns=['time','code',name]
+        if('month' in Data):
+            Data.rename(columns={'month':'time'},inplace=True)
+        if('date' in Data):
+            Data.rename(columns={'date':'time'},inplace=True)
+        factorList=Data.columns        
+        if(len(factorList)<=2):
+            print('error')
+            return Data
+        else:
+            dataList=getfactorname(Data,['code','time'])
+        for dataname in dataList:
+            if(dataname in self.datalist):#如果重复则先删除信息再重新载入
+                rest=pd.Series(self.datalist)
+                self.datalist=rest[rest!=dataname].tolist()
+                del self.dataBase['v'][dataname]
+            self.dataBase['v']=self.dataBase['v'].merge(Data[['time','code',dataname]],on=['time','code'],how='outer')
+            self.datalist=self.datalist+[dataname]    
+            
+    #横截面回归取残差，速度慢尽量月频
+    def AregBResid(self,yname,xname,rname='resid'):
+        if(type(yname)=='str'):
+            yname=list(yname)
+        if(type(xname)=='str'):
+            xname=list(xname)
+        datagroup=self.dataBase['v'].groupby('time')
+        Ans=[]
+        for date in tqdm(self.dataBase['v'].time.unique()):
+            data_loc=datagroup.get_group(date).dropna()
+            data_loc[rname]=calcResid(data_loc[yname], data_loc[xname])
+            Ans.append(data_loc)
+        self.tmp=Ans
+        self.dataBase['v']=pd.concat(Ans)
+        self.latestname=rname
+    def addAB(self,xnames):
+        pass
+    def AcutB(self,yname,xname):
+        pass
+    def covAB(self,xnames):
+        pass
+    

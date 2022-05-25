@@ -93,7 +93,7 @@ class FactorTest():
             ls_ret['多空组合'] = ls_ret[1] - ls_ret[t]  # 第一组-第五组
             if (facname in self.portfolioGroup.columns):  # 如果重复则先删除信息再重新载入
                 self.portfolioGroup = self.portfolioGroup.drop(columns=facname)
-            self.portfolioGroup = self.portfolioGroup.merge(Mer[['time','code',facname]], on=['time', 'code'], how='outer').dropna()
+            self.portfolioGroup = self.portfolioGroup.merge(Mer[['time','code',facname]], on=['time', 'code'], how='outer')
             self.portfolioList[facname]=ls_ret
             self.portfolioAns[facname]=evaluatePortfolioRet(ls_ret[1]-ls_ret[t])
             self.annualTurnover[facname] = calcAnnualTurnover(self.portfolioGroup, facname)
@@ -129,7 +129,7 @@ class FactorTest():
         if(type(self.filterStockDF)==pd.DataFrame):
             RetData=setStockPool(RetData,self.filterStockDF)
         if ((base != '') & (base in self.portfolioGroup.columns)):
-            factorDB = self.portfolioGroup[self.portfolioGroup[base] == 1][['time', 'code']].merge(self.FactorDataBase['v'],on=['time', 'code'],how='inner').dropna()
+            factorDB = self.portfolioGroup[self.portfolioGroup[base] == 1][['time', 'code']].merge(self.FactorDataBase['v'],on=['time', 'code'],how='outer').dropna()
         elif (base == ''):
             factorDB = self.FactorDataBase['v']
         else:

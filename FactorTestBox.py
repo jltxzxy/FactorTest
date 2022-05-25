@@ -157,6 +157,8 @@ def maxDrawDown(Rev_seq):
     return (Rev_list/Rev_list.cummax()-1).min()
 #修改——自动多样式
 def toTime(x):
+    if(len(x.iloc[0])==6):
+        return pd.Series(x).apply(lambda x:pd.to_datetime(str(int(x))+'01'))
     return pd.Series(x).apply(lambda x:pd.to_datetime(str(int(x))))
 def fromTime(x):
     return pd.Series(x).apply(lambda x:int(x.strftime('%Y%m%d')))
@@ -507,7 +509,7 @@ def calcWRPL(x):
 def calcGroupWR(x,by='group',Retdata=getRetData()):
     xname=x.name
     if(not('ret' in x.columns)):
-        x=x.merge(RetData,on=['time','code'])
+        x=x.merge(RetData,on=['time','code'],how='outer')
     x['ret']=x['ret']-x['ret'].median()
     x=x[x[by]!=0]
     t=len(x[by].unique())
@@ -1060,7 +1062,7 @@ def testTime(func):
 #    @classmethod 通过类名直接调用函数
 
 
-def transData(data,key='factor',ANN_DT='BasicFactor_AShareFinancialIndicator_ANN_DT.txt', output='', startmonth=199912, endmonth=202112):
+def transData(data,key='factor',ANN_DT='BasicFactor_AShareFinancialIndicator_ANN_DT.txt', output='', startmonth=199912, endmonth=210012):
     '''
     data为因子矩阵,需预先getFisicalList()处理
     key因子名,output为输出形式（三列或矩阵型）
@@ -1095,7 +1097,7 @@ def calc_plot(DF):
     # DF=DF.reset_index()
     # DF['time']=DF['time'].apply(toTime)
     # DF.set_index('time').plot()
-    applyindex(lambda x:str(x),DF).plot()
+    applyindex(DF,lambda x:str(x)).plot()
 def calcFisicalLYR(DF):
     '''
     矩阵型  转为上年末数据
@@ -1120,7 +1122,7 @@ def calcFisicalttm(DF):
     DFq=calcFisicalq(DF)
     return DFq.rolling(window=4).sum()
 
-def applyindex(func,x):
+def applyindex(x,func):
     '''
        直接对DataFrame或Series 对index执行func
     '''
@@ -1197,7 +1199,7 @@ def monthToDay(DF,factor_list=''):
 
 
 class dataProcess():
-    def __init__(self,DataBase=pd.DataFrame(columns=['time','code'])):
+    def __init__(self,DataBase={'v':pd.DataFrame(columns=['time','code'])}):
         self.dataBase=DataBase
         self.datalist=[]
         self.latestname='all'
@@ -1206,7 +1208,7 @@ class dataProcess():
     #返回最新值self. latest
     def __call__(self,name='last'):
         if(name=='last'):
-            self.lastestname
+            name=self.latestname
         if(name!='all'):
             return self.dataBase['v'][['time','code',name]]
         else:

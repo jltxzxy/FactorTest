@@ -106,6 +106,64 @@ class FactorTest():
             plt.show()
         if(len(factorlist)>1):
             print(self.portfolioDF)
+            
+    def doubleSorting(self,factor_list,method='cond',startMonth=200001,endMonth=210001,t1=5,t2=5,asc=''):
+        '''
+
+        Parameters
+        ----------
+        factor_list : list
+            必须传入一个列表 ['fac1','fac2']，表示求fac2在fac1条件下的双重排序
+                fac2在fac1条件下的双重排序命名为：'fac2|fac1'.
+        
+        method : str 'cond' or 'idp'
+            'cond'为条件双重排序，'idp'为独立双重排序
+            
+        t1, t2 : int
+            t1, t2分别为fac1, fac2的分组数， 默认为5
+
+        Returns
+        -------
+        第一个返回值为t1*t2年化收益率矩阵.
+        第二个返回值为t1*t2信息比率矩阵
+        portfolioList和portfolioGroup做相应更新
+
+        '''
+        data = self.FactorDataBase['v'][['time','code']+factor_list].copy()
+        data = data[data.time>=startMonth]
+        data = data[data.time<=endMonth]
+        
+        RetData=self.retData
+        RetData=RetData[RetData.time>=startMonth]
+        RetData=RetData[RetData.time<=endMonth]
+        
+        if(asc!=''):
+            ascloc=asc
+        else:
+            ascloc=False
+            
+        if method=='cond':
+            data = data.merge(RetData, on=['time','code'], how='outer').dropna()
+            data = data.groupby('time').apply(isinGroupT, factor_list[0], asc=ascloc, t=t1).reset_index(drop=True)
+            data = data.groupby(['time',factor_list[0]]).apply(isinGroupT, factor_list[1], asc=ascloc, t=t2).reset_index(drop=True)
+            
+        facname=('%s|%s'%(factor_list[1], factor_list[0]))
+        data[facname] = data[factor_list[0]].apply(lambda x: str(x))+data[factor_list[1]].apply(lambda x: str(x)) #条件分组编号
+        ls_ret = calcGroupRet(data,facname,RetData) #条件分组收益率
+        fac2_ls_ret = calcGroupRet(data,factor_list[1],RetData)
+        ls_ret['多空组合'] = fac2_ls_ret[1] - fac2_ls_ret[t2]  
+        
+        self.portfolioList[facname]=ls_ret
+        self.portfolioGroup = self.portfolioGroup.merge(data[['time','code',facname]], on=['time', 'code'], how='outer')
+
+        def ARIR(Rev_seq,t=12):
+            ret_mean=e**(np.log(Rev_seq+1).mean()*12)-1
+            ret_sharpe=Rev_seq.mean()*t/Rev_seq.std()/t**0.5
+            return pd.DataFrame({'年化收益率':ret_mean, '信息比率':ret_sharpe})
+        tmp = ARIR(ls_ret.drop('多空组合',axis=1))
+        tmp_AnlRet,tmp_IR = tmp['年化收益率'].values.reshape((t2,t1)),tmp['信息比率'].values.reshape((t2,t1))
+        tmp_AnlRet,tmp_IR = pd.DataFrame(tmp_AnlRet,columns=[factor_list[1]+'_'+str(i) for i in range(1,t2+1)],index=[factor_list[0]+'_'+str(i) for i in range(1,t1+1)]),pd.DataFrame(tmp_IR,columns=[factor_list[1]+'_'+str(i) for i in range(1,t2+1)],index=[factor_list[0]+'_'+str(i) for i in range(1,t1+1)])       
+        return tmp_AnlRet,tmp_IR 
 
         
     #常规测试流程

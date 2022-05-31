@@ -244,9 +244,10 @@ def getIndexData(code):
     indexData=indexData.sort_values(by='time')
     return indexData
 #读取指数成分股列表 改  缺 500、1000成分股数据
-def getIndexComponent(indexname='wind'):
+def getIndexComponent(indexname='wind',freq='month'):
     """
      indexname={300,500,800,1000}
+     freq='month' or 'day' 月频或日频 默认月频
     """
     if(indexname=='wind'):
         IndexComponent=readLocalData('WINDAComponent.txt').dropna()
@@ -266,9 +267,11 @@ def getIndexComponent(indexname='wind'):
     if(indexname==1000):
         IndexComponent=readLocalData('CSI1000Component.txt').dropna().reset_index(drop=True)
         IndexComponent=IndexComponent[IndexComponent.isComponent!=0]
-
-    IndexComponent['time']=IndexComponent['time'].apply(lambda x:int(str(x)[:6]))
-    IndexComponent=IndexComponent.drop_duplicates(subset=['time','code'],keep='last')
+    
+    if freq=='month':
+        IndexComponent['time']=IndexComponent['time'].apply(lambda x:int(str(x)[:6]))
+        IndexComponent=IndexComponent.drop_duplicates(subset=['time','code'],keep='last')
+    
     return IndexComponent
 
 #筛选股票 

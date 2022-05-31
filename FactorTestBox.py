@@ -244,9 +244,10 @@ def getIndexData(code):
     indexData=indexData.sort_values(by='time')
     return indexData
 #读取指数成分股列表 改  缺 500、1000成分股数据
-def getIndexComponent(indexname='wind'):
+def getIndexComponent(indexname='wind',freq='month'):
     """
      indexname={300,500,800,1000}
+     freq='month' or 'day' 月频或日频 默认月频
     """
     if(indexname=='wind'):
         IndexComponent=readLocalData('WINDAComponent.txt').dropna()
@@ -266,9 +267,11 @@ def getIndexComponent(indexname='wind'):
     if(indexname==1000):
         IndexComponent=readLocalData('CSI1000Component.txt').dropna().reset_index(drop=True)
         IndexComponent=IndexComponent[IndexComponent.isComponent!=0]
-
-    IndexComponent['time']=IndexComponent['time'].apply(lambda x:int(str(x)[:6]))
-    IndexComponent=IndexComponent.drop_duplicates(subset=['time','code'],keep='last')
+    
+    if freq=='month':
+        IndexComponent['time']=IndexComponent['time'].apply(lambda x:int(str(x)[:6]))
+        IndexComponent=IndexComponent.drop_duplicates(subset=['time','code'],keep='last')
+    
     return IndexComponent
 
 #筛选股票 
@@ -1259,6 +1262,66 @@ class dataProcess():
         self.tmp=Ans
         self.dataBase['v']=pd.concat(Ans)
         self.latestname=rname
+        
+    def addFactors(self,addList='',factorname='factorSum'):
+        '''
+
+        Parameters
+        ----------
+        addList : list
+            需要相加的因子列表.
+        factorname : str
+            因子和的名称  默认名称为'factorSum'
+        Returns
+        -------
+        无返回值
+        因子和通过getData函数加入self.dataBase
+
+        '''
+        if(addList==''):
+            addList=FB.getfactorname(self.dataBase['v'])
+        facSum=0
+        for fac_name in addList:
+            tmp=self.dataBase['v'].pivot('time','code',fac_name)
+            facSum=facSum+(tmp.sub(tmp.mean(axis=1), axis='index').div(tmp.std(axis=1), axis='index'))
+        facSum=factorStack(facSum, factorname)
+        self.getData(facSum)
+        
+    #仍待完善    
+    def factorFillNA(self, factor_list='', freq='month', method='median', window=12):
+        '''
+
+        Parameters
+        ----------
+        DF : 
+            三列标准型.
+        factor_list : str or list, optional
+            需要填充缺失值的因子. The default is ''.
+        freq : str, optional
+            可传入'month'或者'day'. The default is 'month'.
+        method : str, optional
+            可传入'mean'或者'median'. The default is 'median'.
+
+        Returns
+        -------
+        三列标准型因子DF，空缺值由行业中性数值填充.
+
+        '''
+        if(factor_list==''):
+            factor_list=FB.getfactorname(DF)
+        if(type(factor_list)==str):
+            factor_list=[factor_list]
+        x=self.dataBase['v'][['time', 'code']+factor_list].copy()
+        x=pd.merge(x, FB.getSWIndustryData(freq=freq), on=['time', 'code'], how='left')
+        
+        x_tmp = x.groupby(['SWind', 'time']).median().reset_index()
+        x_tmp = pd.merge(x, x_tmp, on=['time','SWind'], how='left') #将行业均值/中位数与原因子数据合并
+        for i in factor_list:
+            x_tmp[i+'_x'].fillna(x_tmp[i+'_y'], inplace=True) #'_x'为原因子列，'_y'为行业均值/中位数列
+            x_tmp[i+'_ind'] = x_tmp[i+'_x']
+            
+        return pd.merge(DF, x_tmp[['time','code']+[i+'_ind' for i in factor_list]], on=['time','code'], how='left')
+
     def addAB(self,xnames):
         pass
     def AcutB(self,yname,xname):

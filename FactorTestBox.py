@@ -157,11 +157,11 @@ def maxDrawDown(Rev_seq):
     return (Rev_list/Rev_list.cummax()-1).min()
 #修改——自动多样式
 def toTime(x):
-    if(len(x.iloc[0])==6):
+    if(len(str(pd.Series(x).iloc[0]))==6):
         return pd.Series(x).apply(lambda x:pd.to_datetime(str(int(x))+'01'))
     return pd.Series(x).apply(lambda x:pd.to_datetime(str(int(x))))
-def fromTime(x):
-    return pd.Series(x).apply(lambda x:int(x.strftime('%Y%m%d')))
+def fromTime(x,strtype='%Y%m%d'):
+    return pd.Series(x).apply(lambda x:int(x.strftime(strtype)))
 #回归：x可以选择是否加截距项
 def regress(y,x,con=True,weight=1):
     """
@@ -281,15 +281,14 @@ def setStockPool(DF,DFfilter):
     return DF
 
 #得到申万行业分类数据 
-def getSWIndustryData(level=1,freq='day',fill=False):
+def getSWIndustryData(level=1,freq='month',fill=False):
     """
         startdate 格式例20200731  缺失则代表不加限制
     """
-    ind_data=pd.read_feather(Datapath+r'\BasicFactor_Swind_Component.txt')
+    ind_data=pd.read_feather(Datapath+r'\BasicFactor_Swind_Component.txt').set_index('time')
     if(freq=='month'):
-        ind_data['time']=ind_data['time'].apply(lambda x:int(str(x)[:6]))
-        ind_data=ind_data.fillna(method='ffill').drop_duplicates(['time'],keep='last')
-    ind_data=ind_data.set_index('time')
+        ind_data=ind_data.pipe(applyindex,toTime).resample('m').last().pipe(applyindex,fromTime,'%Y%m')
+        
     ind_data=ind_data.stack().reset_index()
     ind_data.columns=['time','code','SWind']
     if(level==1):
@@ -303,15 +302,34 @@ def getSWIndustryData(level=1,freq='day',fill=False):
     ind_data=ind_data.reindex(getTradeDateList()).fillna(method='ffill').stack().reset_index()
     return ind_data
 #加上行业数据列 
-def getSWIndustry(DF,level=1,freq='day'):
+def addSWIndustry(DF,level=1,freq='month'):
     """
         level 1 申万一级行业
     """
-    SWData=getSWIndustryData(level,freq)
+    SWData=getSWIndustryData(level,freq=freq)
     DF=DF.merge(SWData,on=['time','code'],how='left')
     return DF
 
+#加上板块信息
 
+def getSWSector(freq='month'):
+    sector = pd.read_csv(filepathtestdata+'sw1.csv')[['申万代码','板块']]
+    swind=getSWIndustryData(freq=freq).merge(sector, left_on='SWind', right_on='申万代码')
+    swind=swind.drop(['SWind','申万代码'], axis=1).rename(columns={'板块': 'sector'})
+    if(freq=='month'):
+        swind=swind.pivot(index='time',columns='code',values='sector')        
+        swind=swind.pipe(applyindex,toTime).resample('m').last().pipe(applyindex,fromTime,'%Y%m')
+        swind=swind.stack().reset_index().rename(columns={0: 'sector'})
+    return swind
+
+def addSWSector(DF, freq='month'):
+    '''
+        DF: 三列标准型
+        freq: 'day', 'month' 可选日频月频
+    '''
+    sector=getSWSector(freq=freq)
+    DF = DF.merge(sector, on=['time', 'code'], how='left')
+    return DF
 
 
 def getIndRetData():
@@ -349,7 +367,7 @@ def industryAggregate(IndInfo):
 
 
 #读取barra因子
-def getBarraData(startdate='',enddate=''):
+def getBarraData(startdate='',enddate='',freq='month'):
     """
         startdate 格式例20200731 int
         返回DataFrame  time code barra factor (注:日频)
@@ -359,13 +377,19 @@ def getBarraData(startdate='',enddate=''):
     for fac in BarraData.keys():
         factorData = BarraData[fac].stack().reset_index()
         BarraData[fac] = pd.DataFrame([])
-        factorData.columns = ['time', 'code', fac]
+        factorData.columns = ['time', 'code', fac]  
         if(startdate!=''):
             factorData=factorData[factorData.time>=startdate]
         if(enddate!=''):
             factorData=factorData[factorData.time<=enddate]
         fac = factorData.fillna(0)
         BarraDataDF = BarraDataDF.merge(factorData, on=['time', 'code'], how='outer')
+        
+    if(freq=='month'):
+        BarraDataDF=dayToMonth(BarraDataDF)
+        
+    if(freq=='day'):
+        BarraDataDF['time']=BarraDataDF['time'].apply(lambda x:int(x))
     return BarraDataDF
 
 #模块转换——因子
@@ -478,7 +502,7 @@ def dayToMonth(DF,factor_list='',method='last'):
 
 #多空t分组,并判断各股票的指标在哪一组
 def isinGroupT(x,factor_name,asc=True,t=5):
-    x[factor_name]=pd.qcut(x[factor_name], t,labels=False)+1
+    x[factor_name]=pd.qcut(x[factor_name], t,labels=False,duplicates='drop')+1
     if(asc==False):
         x[factor_name]=t-x[factor_name]+1
     return x
@@ -493,13 +517,18 @@ def isinTopK(x,factor_name,asc=True,k=30):
     x[factor_name] = x[factor_name].apply(lambda y: 1 if y <= num else 0)
     return x
 
-def calcGroupRet(x,factor_name,RetData=getRetData()):
+#组合业绩评估
+def calcGroupRet(x,factor_name,RetData=getRetData(),MVweight=False):
     if(not('ret' in x.columns)):
         x=x.merge(RetData,on=['time','code'])
-    y = x.groupby(['time', factor_name])['ret'].mean().reset_index()
+    if(MVweight==False):
+        y = x.groupby(['time', factor_name])['ret'].mean().reset_index()
+    else:
+        x=addXSize(x,norm='dont')
+        y = x.groupby(['time', factor_name]).apply(lambda x:calcWeightedMean(x['ret'],x['CMV'])).reset_index()
+        
     y = y.pivot(index='time', columns=factor_name)
     y.columns = y.columns.droplevel()
-    #y['mean'] = mer.groupby('time')['ret'].mean()
     return y
 
 
@@ -551,8 +580,8 @@ def calcResid(y,x,intercept=True,retBeta=False):
     return np.array(resid)
 
 #加入sw行业
-def addXSWindDum(DF):
-    ind_tmp=getSWIndustryData(freq='month')
+def addXSWindDum(DF,freq='month'):
+    ind_tmp=getSWIndustryData(freq=freq)
     if('SWind' in DF):
         del DF['SWind']
     DF=DF.merge(ind_tmp,on=['time','code'],how='left')
@@ -560,26 +589,54 @@ def addXSWindDum(DF):
 
 
 #加入中信行业
-def addXZXind(DF):
-    ind_tmp=getZXIndustryData(freq='month')
+def addXZXind(DF,freq='month'):
+    ind_tmp=getZXIndustryData(freq=freq)
     if('ZXind' in DF):
         del DF['ZXind']
     DF=DF.merge(ind_tmp,on=['time','code'],how='left')
     return DF
 
-def addXSize(DF):
+
+def getCMV(freq='month'):
     Size_data=pd.read_feather(Datapath+r'\BasicFactor_DqMV.txt')
-    Size_data['time']=Size_data['time'].apply(lambda x:int(str(x)[:6]))
-    Size_data=Size_data.fillna(method='ffill').drop_duplicates(['time'],keep='last')
-    
+    if(freq=='month'):
+        Size_data['time']=Size_data['time'].apply(lambda x:int(str(x)[:6]))
+        Size_data=Size_data.fillna(method='ffill').drop_duplicates(['time'],keep='last')
     Size_data=Size_data.set_index('time')
     Size_data=Size_data.stack().reset_index()
     Size_data.columns=['time','code','CMV']
+    return Size_data
+
+def addXSize(DF,freq='month',norm='boxcox'):
+    '''
+    
+
+    Parameters
+    ----------
+    DF : TYPE
+        DESCRIPTION.
+    freq : TYPE, optional
+        DESCRIPTION. The default is 'month'.
+    norm : TYPE, optional
+        DESCRIPTION. The default is 'boxcox'. 
+        boxcox 标准化
+        dont 不用做标准化（流通市值加权用）
+
+    Returns
+    -------
+    TYPE
+        DESCRIPTION.
+
+    '''
+    Size_data=getCMV(freq=freq)
     def boxcoxcmv(x):
-        x['CMV']=scipy.stats.boxcox(x['CMV']+1)[0]
+        if(len(x['CMV'].unique())>1):
+            x['CMV']=scipy.stats.boxcox(x['CMV']+1)[0]
         return x
-    Size_data=Size_data.groupby('time').apply(boxcoxcmv)
-    # Size_data=dayToMonth(Size_data)
+    if(norm=='boxcox'):
+        Size_data=Size_data.groupby('time').apply(boxcoxcmv)
+    if(norm=='ln'):
+        Size_data['CMV']=Size_data['CMV'].apply(lambda x:np.log(x))
     if('CMV' in DF):
         del DF['CMV']
     DF=DF.merge(Size_data,on=['time','code'],how='left')
@@ -605,12 +662,12 @@ def RegbyindSize(x,name):
     return x
 
 #计算行业市值中性
-def calcNeuIndSize(factor,factor_name):
+def calcNeuIndSize(factor,factor_name,freq='month'):
     factor_tmp=factor.copy()
     if('CMV' not in factor):
-        factor_tmp=addXSize(factor_tmp)
+        factor_tmp=addXSize(factor_tmp,freq=freq)
     if('SWind' not in factor):
-        factor_tmp=addXSWindDum(factor_tmp)
+        factor_tmp=addXSWindDum(factor_tmp,freq=freq)
     if(factor_name+'_neu' in factor_tmp):
         del factor_tmp[factor_name+'_neu']
     factor_tmp=factor_tmp.groupby('time').apply(RegbyindSize,factor_name).reset_index(drop=True)
@@ -639,10 +696,10 @@ def RegbySize(x,name):
     return x
 
 #计算市值中性
-def calcNeuSize(factor,factor_name):
+def calcNeuSize(factor,factor_name,freq='month'):
     factor_tmp=factor.copy()
     if('CMV' not in factor):
-        factor_tmp=addXSize(factor_tmp)
+        factor_tmp=addXSize(factor_tmp,freq=freq)
     if(factor_name+'_neu' in factor_tmp):
         del factor_tmp[factor_name+'_neu']
     factor_tmp=factor_tmp.groupby('time').apply(RegbySize,factor_name).reset_index(drop=True)
@@ -654,8 +711,8 @@ def calcNeuSize(factor,factor_name):
 
 
 
-def addXBarra(DF,Barra_list=''):
-    barra_tmp=dayToMonth(getBarraData())
+def addXBarra(DF,Barra_list='',freq='month'):
+    barra_tmp=getBarraData(freq=freq)
     if(Barra_list==''):
         Barra_list=getfactorname(barra_tmp)        
     if(type(Barra_list)==str):
@@ -684,10 +741,10 @@ def RegbyBarra(x,name,factor_list):
     return x
 
 #纯因子
-def calcNeuBarra(factor,factor_name,factor_list=''):
-    factor_tmp,factor_list=addXBarra(factor,Barra_list=factor_list)
+def calcNeuBarra(factor,factor_name,factor_list='',freq='month'):
+    factor_tmp,factor_list=addXBarra(factor,Barra_list=factor_list,freq=freq)
     if('SWind' not in factor):
-        factor_tmp=addXSWindDum(factor_tmp)
+        factor_tmp=addXSWindDum(factor_tmp,freq=freq)
     if(factor_name+'_pure' in factor_tmp):
         del factor_tmp[factor_name+'_pure']
     factor_tmp=factor_tmp.groupby('time').apply(RegbyBarra,factor_name,factor_list).reset_index(drop=True)
@@ -1025,8 +1082,12 @@ def toShortForm(DF,faclist=''):
     DF1=DF.drop_duplicates(subset=['time','code'],keep='last').pivot(index='time',columns='code',values=faclist)
     return DF1
 
-def toLongForm(DF):
-    return DF.stack().reset_index()
+def toLongForm(DF,facname=''):
+    DF=DF.stack().reset_index()
+    if(facname!=''):
+        DF.columns=['time','code',factorname]
+    return DF
+
 
 def fillFisicalMonth(DF,faclist):
     if(type(faclist)=='str'):
@@ -1083,7 +1144,7 @@ def transData(data,key='factor',ANN_DT='BasicFactor_AShareFinancialIndicator_ANN
     factorDF['rtime']=factorDF['ANN_DT'].apply(lambda x:int(str(x)[:6]))
     factorDF=factorDF.drop_duplicates(subset=['code','rtime'],keep='last')
     factorDF_loc=factorDF.pivot(index='rtime',columns='code',values= key)
-    factorDF_loc=factorDF_loc.reindex(monthlist[monthlist>=factorDF_loc.index[0]]).fillna(method='ffill')
+    factorDF_loc=factorDF_loc.reindex(monthlist[monthlist>=factorDF_loc.index[0]]).ffill()
     factorDF=factorDF_loc.stack().reset_index()
     factorDF.rename(columns={0:key},inplace=True)
     factorDF = factorDF[factorDF.time >= startmonth]
@@ -1122,7 +1183,7 @@ def calcFisicalttm(DF):
     DFq=calcFisicalq(DF)
     return DFq.rolling(window=4).sum()
 
-def applyindex(x,func):
+def applyindex(x,func,*args,**kwargs):
     '''
        直接对DataFrame或Series 对index执行func
     '''
@@ -1130,7 +1191,7 @@ def applyindex(x,func):
         x.index.name='index'
     xname=x.index.name
     x=x.reset_index()
-    x[xname]=x[xname].apply(func)
+    x[xname]=x[xname].apply(lambda x:func(x,*args,**kwargs))
     return x.set_index(xname)
 # 半衰期序列
 def calc_exp_list(window,half_life):
@@ -1188,7 +1249,7 @@ def monthToDay(DF,factor_list=''):
     for fac in factor_list:
         x1=x[fac].reset_index()
         x1=pd.merge(x1, time, left_on='time', right_on='month', how='outer').set_index('day').drop(['time','month'],axis=1)
-        x1=x1.reindex(day.values).fillna(method='ffill')
+        x1=x1.reindex(day.values).ffill()
         x1=x1.stack().reset_index()
         x1.columns=['time','code',fac]
         x_tmp=x_tmp.merge(x1,on=['time','code'],how='outer')
@@ -1259,8 +1320,66 @@ class dataProcess():
         self.tmp=Ans
         self.dataBase['v']=pd.concat(Ans)
         self.latestname=rname
-    def addAB(self,xnames):
-        pass
+    def addFactors(self,addList='',factorname='factorSum'):
+        '''
+
+        Parameters
+        ----------
+        addList : list
+            需要相加的因子列表.
+        factorname : str
+            因子和的名称  默认名称为'factorSum'
+        Returns
+        -------
+        无返回值
+        因子和通过getData函数加入self.dataBase
+
+        '''
+        if(addList==''):
+            addList=getfactorname(self.dataBase['v'])
+        facSum=0
+        for fac_name in addList:
+            tmp=self.dataBase['v'].pivot('time','code',fac_name)
+            facSum=facSum+(tmp.sub(tmp.mean(axis=1), axis='index').div(tmp.std(axis=1), axis='index'))
+        facSum=factorStack(facSum, factorname)
+        self.getData(facSum)
+        
+    #仍待完善    
+    def factorFillNA(self, factor_list='', freq='month', method='median', window=12):
+        '''
+
+        Parameters
+        ----------
+        DF : 
+            三列标准型.
+        factor_list : str or list, optional
+            需要填充缺失值的因子. The default is ''.
+        freq : str, optional
+            可传入'month'或者'day'. The default is 'month'.
+        method : str, optional
+            可传入'mean'或者'median'. The default is 'median'.
+
+        Returns
+        -------
+        三列标准型因子DF，空缺值由行业中性数值填充.
+
+        '''
+        if(factor_list==''):
+            factor_list=getfactorname(DF)
+        if(type(factor_list)==str):
+            factor_list=[factor_list]
+        x=self.dataBase['v'][['time', 'code']+factor_list].copy()
+        x=pd.merge(x, getSWIndustryData(freq=freq), on=['time', 'code'], how='left')
+        
+        x_tmp = x.groupby(['SWind', 'time']).median().reset_index()
+        x_tmp = pd.merge(x, x_tmp, on=['time','SWind'], how='left') #将行业均值/中位数与原因子数据合并
+        for i in factor_list:
+            x_tmp[i+'_x'].fillna(x_tmp[i+'_y'], inplace=True) #'_x'为原因子列，'_y'为行业均值/中位数列
+            x_tmp[i+'_ind'] = x_tmp[i+'_x']
+            
+        return pd.merge(DF, x_tmp[['time','code']+[i+'_ind' for i in factor_list]], on=['time','code'], how='left')
+
+    
     def AcutB(self,yname,xname):
         pass
     def covAB(self,xnames):

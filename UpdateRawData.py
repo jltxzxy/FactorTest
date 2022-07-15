@@ -66,47 +66,21 @@ def getHS300Weight(infoDF):
 def readWindData(ans,ind='Times',col='Codes'):
     return pd.DataFrame(ans.Data,index=getattr(ans,ind),columns=getattr(ans,col))
 
-def getZZ500EWeight(infoDF):
-    starttime=str(FB.getUpdateStartTime(infoDF['最新时间']))
-    starttime=starttime[:4]+'-'+starttime[4:6]+'-'+starttime[6:]
-    from WindPy import w
-    w.start()
-    ans=w.wset("indexhistory","startdate="+starttime+";enddate=2100-12-31;windcode=000905.SH")
-    w.close()
-    try:
-        ans=readWindData(ans,'Fields','Codes').T[['tradedate','tradecode','tradestatus']]
-    except:
-        ans=pd.DataFrame(index=['tradedate','tradecode','tradestatus']).T
-    FB.saveIndexComponentData(ans, infoDF)
-    
 
+def getIndexComponent(infoDF):
+    for i in infoDF.index:
+        starttime=str(FB.getUpdateStartTime(infoDF.loc[i,'最新时间']))
+        starttime=starttime[:4]+'-'+starttime[4:6]+'-'+starttime[6:]
+        from WindPy import w
+        w.start()
+        ans=w.wset("indexhistory","startdate="+starttime+";enddate=2100-12-31;windcode="+infoDF.loc[i,'数据库键'])
+        w.close()
+        try:
+            ans=readWindData(ans,'Fields','Codes').T[['tradedate','tradecode','tradestatus']]
+        except:
+            ans=pd.DataFrame(index=['tradedate','tradecode','tradestatus']).T
+        FB.saveIndexComponentData(ans, infoDF.loc[[i]])
 
-def getZZ1000EWeight(infoDF):
-    starttime=str(FB.getUpdateStartTime(infoDF['最新时间']))
-    starttime=starttime[:4]+'-'+starttime[4:6]+'-'+starttime[6:]
-    from WindPy import w
-    w.start()
-    ans=w.wset("indexhistory","startdate="+starttime+";enddate=2100-12-31;windcode=000852.SH")
-    w.close()
-    try:
-        ans=readWindData(ans,'Fields','Codes').T[['tradedate','tradecode','tradestatus']]
-    except:
-        ans=pd.DataFrame(index=['tradedate','tradecode','tradestatus']).T
-    FB.saveIndexComponentData(ans, infoDF)
-
-
-def getWindAEWeight(infoDF):
-    starttime=str(FB.getUpdateStartTime(infoDF['最新时间']))
-    starttime=starttime[:4]+'-'+starttime[4:6]+'-'+starttime[6:]
-    from WindPy import w
-    w.start()
-    ans=w.wset("indexhistory","startdate="+starttime+";enddate=2100-12-31;windcode=881001.WI")
-    w.close()
-    try:
-        ans=readWindData(ans,'Fields','Codes').T[['tradedate','tradecode','tradestatus']]
-    except:
-        ans=pd.DataFrame(index=['tradedate','tradecode','tradestatus']).T
-    FB.saveIndexComponentData(ans, infoDF)
 
 def getValidData(infoDF):
     #ST

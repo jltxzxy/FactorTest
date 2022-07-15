@@ -21,7 +21,8 @@ class FactorTest():
         self.PL={}
         pd.options.mode.use_inf_as_na = True  #剔除inf
         self.dataProcess=dataProcess(self.FactorDataBase)
-
+    def updateFactorList(self):
+        self.factorlist=getfactorname(self.FactorDataBase['v'])
     def getFactor(self,Factor):
         #考虑：频率统一为月度 ,sql型数据
         if('month' in Factor):
@@ -114,7 +115,7 @@ class FactorTest():
         self.calcLongShort(factorlist,startMonth,endMonth,t,asc)
         
     #计算按因子值排名前K
-    def calcTopK(self,factorlist='',startMonth='',endMonth='',k=30,asc='',base=''):
+    def calcTopK(self,factorlist='',startMonth='',endMonth='',k=30,asc='',base='',MVweight=False):
         if(factorlist==''):
             factorlist=self.factorlist
         if(type(factorlist)==str):
@@ -146,19 +147,27 @@ class FactorTest():
                     if(self.ICAns[facname]['IC:']<0):
                         ascloc=True
             Mer = Mer.groupby('time').apply(lambda x: isinTopK(x, facname, ascloc, k=k)).reset_index(drop=True)
-            topk_list = calcGroupRet(Mer,facname,RetData)
+            topk_list = calcGroupRet(Mer,facname,RetData,MVweight=MVweight)
             if (facname in self.portfolioGroup.columns):  # 如果重复则先删除信息再重新载入
                 self.portfolioGroup = self.portfolioGroup.drop(columns=facname)
             # portfoliogroup为1，表明按asc排序该股票的因子值在前k之内，为2表明因子值在倒数k个之内
             self.portfolioGroup = self.portfolioGroup.merge(Mer[['time','code',facname]], on=['time', 'code'], how='outer').fillna(0)
+            if(MVweight==False):
+                topk_list['mean']=Mer.groupby('time').mean()['ret']
+            else:
+                Mer=addXSize(Mer,norm='dont')
+                topk_list['mean']=Mer.groupby('time').apply(lambda x:calcWeightedMean(x['ret'],x['CMV']))
+                
             self.portfolioList[facname]=topk_list
             self.portfolioAns[facname]=evaluatePortfolioRet(topk_list[1]-topk_list[0])
             self.annualTurnover[facname] = calcAnnualTurnover(self.portfolioGroup, facname)
             if(len(factorlist)==1):
                 print(facname+':')
                 topk_list['ls']=topk_list[1]-topk_list[0]
+                topk_list['lm']=topk_list[1]-topk_list['mean']
                 calc_plot(topk_list.apply(lambda x:x+1).cumprod())
-                print(self.portfolioAns[facname])
+                print('多头超额：',evaluatePortfolioRet(topk_list[1]-topk_list['mean']))
+                print('多空：',evaluatePortfolioRet(topk_list[1]-topk_list[0]))
             plt.show()
         if(len(factorlist)>1):
             print(self.portfolioDF)
@@ -305,7 +314,79 @@ class FactorTest():
         for fac in factorlist:
             factorDF=calcNeuBarra(self.FactorDataBase['v'], fac)
             self.getFactor(factorDF[['time','code',fac+'_pure']].dropna())
-                
+    
+    def doubleSorting(self,factor_list,method='cond',startMonth=200001,endMonth=210001,t1=5,t2=5,asc=[]):
+        '''
+
+        Parameters
+        ----------
+        factor_list : list
+            必须传入一个列表 ['fac1','fac2']，表示求fac2在fac1条件下的双重排序，独立排序时fac1, fac2顺序无关
+                fac2在fac1条件下的双重排序命名为：'fac2|fac1'.
+        
+        method : str 'cond' or 'idp' or 'rev'
+            'cond'为条件双重排序(默认)，'idp'为独立双重排序  'rev'为条件双重排序(反向)
+            
+        t1, t2 : int
+            t1, t2分别为fac1, fac2的分组数， 默认为5
+            
+        asc=[]  默认为False 即从大到小 第一组因子值最大
+        Returns
+        -------
+        第一个返回值为t1*t2年化收益率矩阵.
+        第二个返回值为t1*t2信息比率矩阵
+        portfolioList和portfolioGroup做相应更新
+
+        '''
+        data = self.FactorDataBase['v'][['time','code']+factor_list].copy()
+        data = data[data.time>=startMonth]
+        data = data[data.time<=endMonth]
+        
+        RetData=self.retData
+        RetData=RetData[RetData.time>=startMonth]
+        RetData=RetData[RetData.time<=endMonth]
+        
+        if(asc!=[]):
+            ascloc1=asc[0]
+            ascloc2=asc[1]
+        else:
+            ascloc1=False
+            ascloc2=False
+           
+        data = data.merge(RetData, on=['time','code'], how='outer').dropna()
+        if method=='rev':
+            method='cond'
+            tmp=factor_list[0]
+            factor_list[0]=factor_list[1]
+            factor_list[1]=tmp
+            
+        if method=='cond':    
+            data = data.groupby('time').apply(isinGroupT, factor_list[0], asc=ascloc1, t=t1).reset_index(drop=True)
+            data = data.groupby(['time',factor_list[0]]).apply(isinGroupT, factor_list[1], asc=ascloc2, t=t2).reset_index(drop=True)            
+        if method=='idp':
+            data = data.groupby('time').apply(isinGroupT, factor_list[0], asc=ascloc1, t=t1).reset_index(drop=True)
+            data = data.groupby('time').apply(isinGroupT, factor_list[1], asc=ascloc2, t=t2).reset_index(drop=True)
+            
+        facname=('%s|%s'%(factor_list[1], factor_list[0]))
+        data[facname] = data[factor_list[0]].apply(lambda x: str(x))+data[factor_list[1]].apply(lambda x: str(x)) #条件分组编号
+        ls_ret = calcGroupRet(data,facname,RetData) #条件分组收益率
+        fac2_ls_ret = calcGroupRet(data,factor_list[1],RetData)
+        ls_ret['多空组合'] = fac2_ls_ret[1] - fac2_ls_ret[t2]  
+        
+        self.portfolioList[facname]=ls_ret
+        self.portfolioGroup = self.portfolioGroup.merge(data[['time','code',facname]], on=['time', 'code'], how='outer')
+
+        def ARIR(Rev_seq,t=12):
+            ret_mean=e**(np.log(Rev_seq+1).mean()*12)-1
+            ret_sharpe=Rev_seq.mean()*t/Rev_seq.std()/t**0.5
+            return pd.DataFrame({'年化收益率':ret_mean, '信息比率':ret_sharpe})
+        tmp = ARIR(ls_ret.drop('多空组合',axis=1))
+        tmp_AnlRet,tmp_IR = tmp['年化收益率'].values.reshape((t2,t1)),tmp['信息比率'].values.reshape((t2,t1))
+        tmp_AnlRet,tmp_IR = pd.DataFrame(tmp_AnlRet,columns=[factor_list[1]+'_'+str(i) for i in range(1,t2+1)],index=[factor_list[0]+'_'+str(i) for i in range(1,t1+1)]),pd.DataFrame(tmp_IR,columns=[factor_list[1]+'_'+str(i) for i in range(1,t2+1)],index=[factor_list[0]+'_'+str(i) for i in range(1,t1+1)])       
+        return tmp_AnlRet,tmp_IR 
+
+    
+    
     @property
     def ICDF(self):
         return pd.DataFrame(self.ICAns).T

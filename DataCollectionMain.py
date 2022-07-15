@@ -31,5 +31,3 @@ if __name__=='__main__':
         os.remove(compresspath+file)
     FB.ZipLocalFiles(Datapath,compresspath,'Data')
     FB.ZipLocalFiles(Factorpath,compresspath,'Factor',t=1)
-
-    

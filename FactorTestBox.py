@@ -256,16 +256,16 @@ def getIndexComponent(indexname='wind'):
         IndexComponent=readLocalData('HS300Component.txt').dropna()
     if(indexname==500):
         IndexComponent=readLocalData('CSI500Component.txt').dropna().reset_index(drop=True)
-        IndexComponent=IndexComponent[IndexComponent.isComponent!=0]
+        IndexComponent=IndexComponent[IndexComponent['000905.SH']!=0]
     if(indexname==800):
         IndexComponent=readLocalData('HS300Component.txt').dropna().reset_index(drop=True)
         IndexComponent1=readLocalData('CSI500Component.txt').dropna().reset_index(drop=True)
         IndexComponent=IndexComponent.append(IndexComponent1)
-        IndexComponent=IndexComponent[IndexComponent.isComponent!=0]
+        IndexComponent=IndexComponent[IndexComponent['000905.SH']!=0]
 
     if(indexname==1000):
         IndexComponent=readLocalData('CSI1000Component.txt').dropna().reset_index(drop=True)
-        IndexComponent=IndexComponent[IndexComponent.isComponent!=0]
+        IndexComponent=IndexComponent[IndexComponent['000852.SH']!=0]
 
     IndexComponent['time']=IndexComponent['time'].apply(lambda x:int(str(x)[:6]))
     IndexComponent=IndexComponent.drop_duplicates(subset=['time','code'],keep='last')
@@ -752,17 +752,19 @@ def calcNeuBarra(factor,factor_name,factor_list='',freq='month'):
         factor=factor.drop(columns=factor_name+'_pure')
     factor=factor.merge(factor_tmp[['time','code',factor_name+'_pure']],on=['time','code'])
     return factor
+
 #计算IC ——spearmanr 方法
 def calcIC(mer, factor_name):
-    sp = mer.groupby('time').apply(lambda x: stats.pearsonr(x['ret'], x[factor_name])[0])
-    IC = sp.mean()
-    ICIR = (sp.mean()) / sp.std() * 12 ** 0.5
+    sp1 = mer.groupby('time').apply(lambda x: stats.pearsonr(x['ret'], x[factor_name])[0])
+    IC = sp1.mean()
+    ICIR = (sp1.mean()) / sp1.std() * 12 ** 0.5
    
-    sp = mer.groupby('time').apply(lambda x: stats.spearmanr(x['ret'], x[factor_name])[0])
-    rankIC = sp.mean()
-    rankICIR = (sp.mean()) / sp.std() * 12 ** 0.5
-    t_v = sp.mean() / sp.std() * (sp.count() - 1) ** 0.5
-    return sp,pd.Series([IC,ICIR,rankIC,rankICIR, t_v],index=['IC:','ICIR:','rankIC:','rankICIR:','t_value:'])
+    sp2 = mer.groupby('time').apply(lambda x: stats.spearmanr(x['ret'], x[factor_name])[0])
+    rankIC = sp2.mean()
+    rankICIR = (sp2.mean()) / sp2.std() * 12 ** 0.5
+    t_v = sp2.mean() / sp2.std() * (sp2.count() - 1) ** 0.5
+    return sp1,sp2,pd.Series([IC,ICIR,rankIC,rankICIR, t_v],index=['IC:','ICIR:','rankIC:','rankICIR:','t_value:'])
+
 #计算组合业绩
 
 def calcIClist(DF):
@@ -881,14 +883,14 @@ def calcAllFactorAns():
        FacDF=Test.portfolioList[datainfo.loc[i,'因子名称']]
        if(datainfo.loc[i,'IC']<0):
            FacDF['多空组合']=FacDF['多空组合']*-1
-       datainfo.loc[i,'多空年化收益']=evaluatePortfolioRet(FacDF['多空组合'])['年化收益率:']
-       datainfo.loc[i,'多空信息比率']=evaluatePortfolioRet(FacDF['多空组合'])['信息比率:']
+       datainfo.loc[i,'多空年化收益']=calcPortfolioRet(FacDF['多空组合'])['年化收益率:']
+       datainfo.loc[i,'多空信息比率']=calcPortfolioRet(FacDF['多空组合'])['信息比率:']
        FacDF['IC']=Test.ICList[datainfo.loc[i,'因子名称']]
        FacDF.columns=pd.Series(FacDF.columns).apply(lambda x:str(x))
        FacDF.reset_index().to_feather(Factorpath+'plotdata/'+datainfo.loc[i,'因子名称']+'.fth')
     datainfo.to_excel(FactorInfopath, index=False)
 
-def evaluatePortfolioRet(Rev_seq,t=12):
+def calcPortfolioRet(Rev_seq,t=12):
     """
     @param Rev_seq:
     @param t:天数 默认12(月) 252 日
@@ -1125,6 +1127,7 @@ def testTime(func):
 
 def transData(data,key='factor',ANN_DT='BasicFactor_AShareFinancialIndicator_ANN_DT.txt', output='', startmonth=199912, endmonth=210012):
     '''
+    即将更名transFisicalData函数
     data为因子矩阵,需预先getFisicalList()处理
     key因子名,output为输出形式（三列或矩阵型）
     ANN_DT为公布日期文件地址，默认'BasicFactor_AShareFinancialIndicator_ANN_DT.txt'；可选三大表ANN_DT
@@ -1153,6 +1156,19 @@ def transData(data,key='factor',ANN_DT='BasicFactor_AShareFinancialIndicator_ANN
         return factorDF.pivot(index='time',columns='code',values=key)
     else:
         return factorDF
+
+
+
+def transFisicalData(data,key='factor',ANN_DT='BasicFactor_AShareFinancialIndicator_ANN_DT.txt', output='', startmonth=199912, endmonth=210012):
+    '''
+    原函数transData
+    data为因子矩阵,需预先getFisicalList()处理
+    key因子名,output为输出形式（三列或矩阵型）
+    ANN_DT为公布日期文件地址，默认'BasicFactor_AShareFinancialIndicator_ANN_DT.txt'；可选三大表ANN_DT
+    '''
+
+    return transData(data,key,ANN_DT,output,startmonth,endmonth)
+
 
 def calc_plot(DF):
     # DF=DF.reset_index()
@@ -1256,6 +1272,91 @@ def monthToDay(DF,factor_list=''):
     return x_tmp
 
 
+
+#画图模块
+
+
+def plotICList(IClist,RankICList,facname=''):
+    IC_df = pd.DataFrame(IClist,columns=['IC'])
+    RankIC_df = pd.DataFrame(RankICList,columns=['RankIC'])
+    plt.figure(figsize=(15,10))
+    ax1 = plt.subplot(221) 
+    ax1.bar([str(i) for i in IC_df.index],IC_df['IC'],bottom = 0, \
+            width=0.5 ,label='月度IC') 
+    ax1.hlines(IC_df['IC'].mean(),str(IC_df.index[0]),\
+                str(IC_df.index[-1]),linestyles='--',color='r',label='月度IC均值')
+    ax1.set_xticks(range(0,len(IC_df),20))
+    ax1.legend()
+    ax1.set_title(facname+'月度IC序列')
+    ax2 = plt.subplot(222) 
+    ax2.bar([str(i) for i in RankIC_df.index],RankIC_df['RankIC'],\
+            bottom = 0, width=0.5 ,label='月度RankIC') 
+    ax2.hlines(RankIC_df['RankIC'].mean(),str(RankIC_df.index[0]),\
+                str(RankIC_df.index[-1]),linestyles='--',color='r',label='月度RankIC均值')
+    ax2.set_title(facname+'月度RankIC序列')
+    ax2.set_xticks(range(0,len(IC_df),20))
+    ax2.legend()
+
+def plotPortfolioList(portfolioList,facname='',ascloc=False,t='',is_sub_axis=1,lsname='多空组合'):
+    '''
+    
+
+    Parameters
+    ----------
+    portfolioList : self.portfolioList[faclist]
+    facname : 表头名称对应因子
+    ascloc : TYPE, optional
+        DESCRIPTION. The default is False.
+    is_sub_axis : 是否需要右轴显示
+    lsname : 右轴显示的列  list表示多列，str表示单列
+
+    Returns
+    -------
+    None.
+
+    '''  
+    data = portfolioList.apply(lambda x:x+1).cumprod().pipe(applyindex,lambda x:str(x))
+    def othername(i,n,asc):
+        other=str(i)
+        if(n!=''):
+            if(asc==False and isinstance(i,int)):
+                other='第'+other+'组'
+                if(int(i)==1):
+                    other=other+'(最大组)'
+                if(int(i)==n):
+                    other=other+'(最小组)'
+            else:
+                if(asc==False and isinstance(i,int)):
+                    other='第'+other+'组'
+                    if(int(i)==1):
+                        other=other+'(最小组)'
+                    if(int(i)==n):
+                        other=other+'(最大组)'
+        return other
+    if is_sub_axis == 0:
+        plt.figure(figsize=(16,8))
+        for i in data.columns:
+            plt.plot(data[i],label = othername(i,t,ascloc))
+        plt.title(facname+'原始净值图')
+        plt.xticks(range(0,len(data),20))
+        plt.legend()
+    else:
+        if(isinstance(lsname,str)):
+            lsname=[lsname]
+        fig,ax1 = plt.subplots(figsize=(16,8))
+        ax2 = ax1.twinx()
+        for i in data.drop(columns=lsname).columns:
+            ax1.plot(data[i],label = othername(i,t,ascloc))
+        for i in data[lsname].columns:
+            if(i==data[lsname].columns[0]):
+                ax2.plot(data[i],label = str(i)+'(右轴)',linestyle='--',color='r')
+            else:
+                ax2.plot(data[i],label = str(i)+'(右轴)',linestyle='--')
+        ax1.set_xticks(range(0,len(data),20))
+        ax2.set_xticks(range(0,len(data),20))
+        plt.title(facname+'原始净值图')
+        ax1.legend(loc="upper left")
+        ax2.legend(loc="upper right")
 
 
 

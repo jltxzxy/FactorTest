@@ -11,6 +11,7 @@ class FactorTest():
         self.filterStockDF='FULL'
         self.retData = getRetData() #统一为time、code  time为int  code 为str 
         self.ICList={}
+        self.RankICList={}        
         self.portfolioList={}
         self.ICAns={}
         self.portfolioAns={}
@@ -42,6 +43,7 @@ class FactorTest():
                 del self.FactorDataBase['v'][factorname]
             self.FactorDataBase['v']=self.FactorDataBase['v'].merge(Factor[['time','code',factorname]],on=['time','code'],how='outer')
             self.factorlist=self.factorlist+[factorname]
+
     
     def calcIC(self,factorlist='',startMonth='',endMonth=''):
         if(factorlist==''):
@@ -59,10 +61,12 @@ class FactorTest():
             RetData=setStockPool(RetData,self.filterStockDF)
         for facname in factorlist:
             Mer=self.FactorDataBase['v'][['time','code',facname]].merge(RetData,on=['time','code'],how='outer').dropna()        
-            self.ICList[facname],self.ICAns[facname]=calcIC(Mer,facname)
+            self.ICList[facname],self.RankICList[facname],self.ICAns[facname]=calcIC(Mer,facname)
             if(len(factorlist)==1):
                 print(facname+':')
                 print(self.ICAns[facname])
+                plotICList(self.ICList[facname],self.RankICList[facname],facname)
+
         if(len(factorlist)>1):
             print(self.ICDF)
 
@@ -96,13 +100,15 @@ class FactorTest():
                 self.portfolioGroup = self.portfolioGroup.drop(columns=facname)
             self.portfolioGroup = self.portfolioGroup.merge(Mer[['time','code',facname]], on=['time', 'code'], how='outer')
             self.portfolioList[facname]=ls_ret
-            self.portfolioAns[facname]=evaluatePortfolioRet(ls_ret[1]-ls_ret[t])
+            self.portfolioAns[facname]=calcPortfolioRet(ls_ret[1]-ls_ret[t])
             self.annualTurnover[facname] = calcAnnualTurnover(self.portfolioGroup, facname)
             if(len(factorlist)==1):
                 print(facname+':')
-                ls_ret1=ls_ret.reset_index().copy()
-                ls_ret1['time']=ls_ret1['time'].apply(lambda x:str(x))
-                ls_ret1.set_index('time').apply(lambda x:x+1).cumprod().plot()
+                # ls_ret1=ls_ret.reset_index().copy()
+                # ls_ret1['time']=ls_ret1['time'].apply(lambda x:str(x))
+                # ls_ret1.set_index('time').apply(lambda x:x+1).cumprod().plot()
+                plotPortfolioList(self.portfolioList[facname],facname,ascloc,t)
+
                 print(self.portfolioAns[facname])
             plt.show()
         if(len(factorlist)>1):
@@ -113,7 +119,7 @@ class FactorTest():
     def autotest(self,factorlist='',startMonth='',endMonth='',t=5,asc=''):
         self.calcIC(factorlist,startMonth,endMonth)
         self.calcLongShort(factorlist,startMonth,endMonth,t,asc)
-        
+
     #计算按因子值排名前K
     def calcTopK(self,factorlist='',startMonth='',endMonth='',k=30,asc='',base='',MVweight=False):
         if(factorlist==''):
@@ -130,7 +136,7 @@ class FactorTest():
         if(type(self.filterStockDF)==pd.DataFrame):
             RetData=setStockPool(RetData,self.filterStockDF)
         if ((base != '') & (base in self.portfolioGroup.columns)):
-            factorDB = self.portfolioGroup[self.portfolioGroup[base] == 1][['time', 'code']].merge(self.FactorDataBase['v'],on=['time', 'code'],how='outer').dropna()
+            factorDB = self.portfolioGroup[self.portfolioGroup[base] == 1][['time', 'code']].merge(self.FactorDataBase['v'],on=['time', 'code'],how='inner')
         elif (base == ''):
             factorDB = self.FactorDataBase['v']
         else:
@@ -138,7 +144,7 @@ class FactorTest():
             return factorlist
 
         for facname in factorlist:
-            Mer=factorDB[['time','code',facname]].merge(RetData,on=['time','code'],how='outer').dropna()
+            Mer=factorDB[['time','code',facname]].merge(RetData,on=['time','code'],how='inner')
             if(asc!=''):
                 ascloc=asc
             else:
@@ -159,15 +165,17 @@ class FactorTest():
                 topk_list['mean']=Mer.groupby('time').apply(lambda x:calcWeightedMean(x['ret'],x['CMV']))
                 
             self.portfolioList[facname]=topk_list
-            self.portfolioAns[facname]=evaluatePortfolioRet(topk_list[1]-topk_list[0])
+            self.portfolioAns[facname]=calcPortfolioRet(topk_list[1]-topk_list[0])
             self.annualTurnover[facname] = calcAnnualTurnover(self.portfolioGroup, facname)
             if(len(factorlist)==1):
                 print(facname+':')
-                topk_list['ls']=topk_list[1]-topk_list[0]
-                topk_list['lm']=topk_list[1]-topk_list['mean']
-                calc_plot(topk_list.apply(lambda x:x+1).cumprod())
-                print('多头超额：',evaluatePortfolioRet(topk_list[1]-topk_list['mean']))
-                print('多空：',evaluatePortfolioRet(topk_list[1]-topk_list[0]))
+                topk_list['多空组合']=topk_list[1]-topk_list[0]
+                topk_list['多头超额']=topk_list[1]-topk_list['mean']
+                #calc_plot(topk_list.apply(lambda x:x+1).cumprod())
+                plotPortfolioList(self.portfolioList[facname],facname,ascloc,lsname=['多空组合','多头超额'])
+
+                print('多头超额：',calcPortfolioRet(topk_list[1]-topk_list['mean']))
+                print('多空组合',calcPortfolioRet(topk_list[1]-topk_list[0]))
             plt.show()
         if(len(factorlist)>1):
             print(self.portfolioDF)
@@ -235,7 +243,7 @@ class FactorTest():
         '''
         分年度打印：
             一、五组业绩
-            一-五 收益率、信息比例、月胜率、最大回撤FB.evaluatePortfolioRet
+            一-五 收益率、信息比例、月胜率、最大回撤FB.calcPortfolioRet
         '''
         if(factorlist==''):
             factorlist=self.portfolioList.keys()
@@ -248,7 +256,7 @@ class FactorTest():
             ans=pd.DataFrame()
             for year in portfolio.time.sort_values().unique():
                 portfolio_loc=portfolioyear.get_group(year).set_index('time')
-                ans1=evaluatePortfolioRet(portfolio_loc['多空组合'])
+                ans1=calcPortfolioRet(portfolio_loc['多空组合'])
                 ans1.loc[1]=(portfolio_loc[1]+1).prod()-1
                 ans1.loc[t]=(portfolio_loc[t]+1).prod()-1
                 ans1.name=year
@@ -304,7 +312,31 @@ class FactorTest():
         print('与Barra相关性')
         print(self.Corr_Mat.T)                
         
-    
+        
+        
+    def calcFamaMacBeth(self,factorlist='',startMonth='',endMonth='',width=''):
+        if(factorlist==''):
+            factorlist=self.factorlist
+        if(type(factorlist)==str):
+            factorlist=[factorlist]
+        if(startMonth==''):
+            startMonth=int(str(self.startdate)[:6])
+        if(endMonth==''):
+            endMonth=int(str(self.enddate)[:6])
+        RetData=self.retData
+        RetData=RetData[RetData.time>=startMonth]
+        RetData=RetData[RetData.time<=endMonth]
+        result = []
+        for facname in factorlist:
+            Mer = self.FactorDataBase['v'][['time','code',facname]].merge(RetData,on=['time','code'],how='outer').dropna() 
+            Mer = Mer[Mer['time']>=startMonth]
+            Mer = Mer[Mer['time']<=endMonth]
+            Mer = Mer.groupby(['code','time']).mean()
+            
+            from linearmodels import FamaMacBeth
+            mod = FamaMacBeth.from_formula('ret ~ 1 + ' + facname, data=Mer)
+            result.append(mod.fit())
+        return result
     #得到纯因子，后缀为 +_pure
     def calcPureFactor(self,factorlist=''):
         if(factorlist==''):
@@ -385,7 +417,41 @@ class FactorTest():
         tmp_AnlRet,tmp_IR = pd.DataFrame(tmp_AnlRet,columns=[factor_list[1]+'_'+str(i) for i in range(1,t2+1)],index=[factor_list[0]+'_'+str(i) for i in range(1,t1+1)]),pd.DataFrame(tmp_IR,columns=[factor_list[1]+'_'+str(i) for i in range(1,t2+1)],index=[factor_list[0]+'_'+str(i) for i in range(1,t1+1)])       
         return tmp_AnlRet,tmp_IR 
 
-    
+    def calcGroupIC(self,factor_list,startMonth=200001,endMonth=210001,t1=5,t2=5,asc=''):
+        '''
+         factor_list : list
+            必须传入一个列表 ['fac1','fac2']，表示求fac2在fac1条件下的双重排序，
+        '''
+        if(asc!=''):
+            ascloc=asc
+        else:
+            ascloc=False
+        data = self.FactorDataBase['v'][['time','code']+factor_list].copy()
+        data = data[data.time>=startMonth]
+        data = data[data.time<=endMonth]
+        RetData=self.retData
+        RetData=RetData[RetData.time>=startMonth]
+        RetData=RetData[RetData.time<=endMonth]
+        data = data.merge(RetData, on=['time','code'], how='outer').dropna()
+        data = data.groupby('time').apply(FB.isinGroupT, factor_list[0], asc=ascloc, t=t1).reset_index(drop=True)
+        IC = []
+        for i in range(1,t2+1):
+            data_temp = data[data[factor_list[0]]==i][['time','code',factor_list[1],'ret']]
+            IC_temp = pd.concat([pd.DataFrame(data_temp.groupby('time').apply(lambda x: stats.pearsonr(x['ret'], x[factor_list[1]])[0])),
+                        pd.DataFrame(data_temp.groupby('time').apply(lambda x: stats.spearmanr(x['ret'], x[factor_list[1]])[0]))],
+                        axis=1)
+            IC_temp.columns = ['IC','RankIC']
+            IC.append(IC_temp)
+        self.groupIClist = IC
+        df_info = pd.DataFrame(index=np.array(['group'+str(i) for i in range(1,t1+1)]),
+                               columns=['IC','rankIC','ICIR','rankICIR'])
+        for group in range(1,t1+1):
+            x1 = IC[group-1]['IC'].mean()
+            x2 = IC[group-1]['RankIC'].mean()
+            x3 = (IC[group-1]['IC'].mean())/IC[group-1]['IC'].std()*np.sqrt(12)
+            x4 = (IC[group-1]['RankIC'].mean())/IC[group-1]['RankIC'].std()*np.sqrt(12)
+            df_info.iloc[group-1] = np.array([x1,x2,x3,x4])
+        return df_info
     
     @property
     def ICDF(self):

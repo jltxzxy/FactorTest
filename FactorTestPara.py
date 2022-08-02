@@ -34,3 +34,10 @@ from tqdm import tqdm
 import scipy.stats as stats
 import datetime
 import statsmodels.api as sm
+import copy
+
+# 用来正常显示中文标签
+from matplotlib import pyplot as plt
+plt.rcParams['font.sans-serif']=['FangSong']
+# 用来正常显示负号
+plt.rcParams['axes.unicode_minus']=False

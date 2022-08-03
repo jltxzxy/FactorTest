@@ -1326,7 +1326,7 @@ def plotPortfolioList(portfolioList,facname='',ascloc=False,t='',is_sub_axis=1,l
                 if(int(i)==n):
                     other=other+'(最小组)'
             else:
-                if(asc==False and isinstance(i,int)):
+                if(asc==True and isinstance(i,int)):
                     other='第'+other+'组'
                     if(int(i)==1):
                         other=other+'(最小组)'

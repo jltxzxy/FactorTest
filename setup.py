@@ -4,6 +4,7 @@ setup(
     name='FactorTest',
     version='1.0.5',
     description='zxy 框架',
+    long_description='详见https://github.com/jltxzxy/FactorTest.git',
     author='zhangxaingyu',
     author_email='376184494@qq.com',
     py_modules=['FactorTest','FactorTestBox','FactorTestMain','FactorTestPara','FactorTestPerformance'],

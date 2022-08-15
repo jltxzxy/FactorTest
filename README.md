@@ -1,17 +1,17 @@
 
-**因子测试框架说明文档（8.11更新）**
+# 因子测试框架说明文档（8.11更新）
 
-**1因子框架组件**
+## 1因子框架组件
 
-**1.1数据文件夹 DataBase**  
+### 1.1数据文件夹 DataBase  
 
 每个feather文件存一条数据
 
-**1.2因子文件夹 FactorDB**
+### 1.2因子文件夹 FactorDB
 
 每个feather文件存一个因子数据
 
-**1.3源代码文件夹 FactorTest**  
+### 1.3源代码文件夹 FactorTest**
 
 UpdateRawData 放数据更新函数,每一个函数更新一簇数据 
 
@@ -25,7 +25,7 @@ FactorTestBox 存放各类用到的工具函数
 
 DataCollectionMain 是更新的主函数
 
-**1.4 记录数据字典 DataInfo.xlsx**
+### 1.4 记录数据字典 DataInfo.xlsx
 
 ![Generated](Readme%20pictures/image-1.png)
 
@@ -33,17 +33,17 @@ DataCollectionMain 是更新的主函数
 
 更新时自动更新最新时间
 
-**1.5 记录因子字典 FactorInfo.xlsx**
+### 1.5 记录因子字典 FactorInfo.xlsx
 
-![Generated](image-2.png)
+![Generated](Readme%20pictures/image-2.png)
 
 每一列存储一个因子，根据函数列匹配UpdateFactorData中对应函数
 
-**1.6 因子测试结果.ipynb** 
+### 1.6 因子测试结果.ipynb
 
-![Generated](image-3.png)
+![Generated](Readme%20pictures/image-3.png)
 
-**2.因子框架如何安装**
+## 2.因子框架如何安装
 
 目前因子框架部署于www.dwjg.xyz中，可以将1中所有组件复制到本地文件中
 
@@ -59,7 +59,7 @@ DataCollectionMain 是更新的主函数
 
 即可在任意地点调用
 
-![Generated](image-4.png)
+![Generated](Readme%20pictures/image-4.png)
 
 然后使用FB.xx FM.xx调用函数
 
@@ -67,13 +67,13 @@ DataCollectionMain 是更新的主函数
 
 3.修改FactorTestPara.py 中rootpath的位置，默认为与py文件处于同一盘中，如有位置上的修改记得在para文件中修正
 
-**3.数据库、因子库更新办法**
+## 3.数据库、因子库更新办法
 
 在小电脑上直接打开DataCollectionMain.py  点击运行，等待”数据库部分已更新完成“,"因子部分已更新完成"均出现。
 
-**4.因子测试FactorTestMain说明文档**
+## 4.因子测试FactorTestMain说明文档
 
-![Generated](image-5.png)
+![Generated](Readme%20pictures/image-5.png)
 
 可以测试的月度因子：一共三列
 
@@ -83,7 +83,7 @@ code 代码 000001.SZ
 
 `      `因子名  因子值  月末因子值
 
-![Generated](image-6.png)
+![Generated](Readme%20pictures/image-6.png)
 
 FactorTestMain 中的FactosrTest() 是测试的核心类，在构造函数中已预存了个股收益率等初始信息
 
@@ -155,9 +155,9 @@ Indtest为FactorTest的Inherited Class
 
 1 在datainfo.xlsx中新增行
 
-![Generated](image-7.png)
+![Generated](Readme%20pictures/image-7.png)
 
-`    `在函数中填写函数名，名称、存储地址（不需要标注路径）  其他可不填（建议数据库键写英文简称）
+`   `在函数中填写函数名，名称、存储地址（不需要标注路径）  其他可不填（建议数据库键写英文简称）
 
 `   `2.在UpdateRawData.py中写 与1中函数名一致函数，以infoDF为传入参数，infoDF即datainfo.xlsx
 
@@ -165,7 +165,7 @@ Indtest为FactorTest的Inherited Class
 
 `   `3.可调用FB.getUpdateStartTime(infoDF['最新时间']，backdays=0)，获取目前函数更新到的最新时间点，便于从断点开始更新节约时间，backdays=t代表从最新日期向前推几个自然日
 
-`  `4.目前以写了 FB.saveDailyData(sqlData,infoDF)用于存储数据库中日数据
+`   `4.目前以写了 FB.saveDailyData(sqlData,infoDF)用于存储数据库中日数据
 
 FB.saveFinData(sqlData,infoDF)存储财务数据
 
@@ -177,7 +177,7 @@ FB.saveSqlData 未完成 打算直接存储类似分析师数据这样难以节�
 
 index为 time columns 为code  存储时注意将time独立作为一列（只要.reset\_index()一下就好）
 
-![Generated](image-8.png)
+![Generated](Readme%20pictures/image-8.png)
 
 加入后 运行函数 检查数据创立情况
 
@@ -185,11 +185,11 @@ index为 time columns 为code  存储时注意将time独立作为一列（只要
 
 检查钩稽关系，即不能出现A基于B更新，但A在datainfo.xlsx中排在B前面更新的情况
 
-**6.怎样新增新的因子**
+## 6.怎样新增新的因子
 
 1.在FactorInfo.xlsx中加入新因子信息，填 因子名称、函数名称、地址
 
-![Generated](image-9.png)
+![Generated](Readme%20pictures/image-9.png)
 
 2.在UpdateFactorData中写因子更新函数
 
@@ -199,17 +199,17 @@ index为 time columns 为code  存储时注意将time独立作为一列（只要
 
 3.更新完成后存储至FactorPath+地址的feather中，统一以time**（int）**、code、因子值三列存储
 
-![Generated](image-10.png)
+![Generated](Readme%20pictures/image-10.png)
 
 3.在因子测试.ipynb 中加入关于这一因子的测试，如
 
-![Generated](image-11.png)
+![Generated](Readme%20pictures/image-11.png)
 
 先加Markdown  因子名称
 
 再加简易测试
 
-**说明文档：FactorTestBox**
+## 说明文档：FactorTestBox
 
 1. read/save  read\_feather/pickle/hdf5  独写各类文件
 

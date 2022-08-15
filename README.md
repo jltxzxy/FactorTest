@@ -52,13 +52,11 @@ DataCollectionMain 是更新的主函数
 
 需要做的是：
 
-### 1.pip第三方库 tqdm 
+**1.pip第三方库 tqdm**
 
 将pandas库更新至最新 （pip install pandas --upgrade --user)
 
-### 2.为方便期间可以将FactorTest文件复制于python路径site-packages中（与pandas这些放到一起
-
-即可在任意地点调用
+**2.为方便期间可以将FactorTest文件复制于python路径site-packages中（与pandas这些放到一起即可在任意地点调用)**
 
 ![Generated](Readme%20pictures/image-4.png)
 
@@ -66,7 +64,7 @@ DataCollectionMain 是更新的主函数
 
 路径可以使用 import sys      sys.path 查看
 
-### 3.修改FactorTestPara.py 中rootpath的位置，默认为与py文件处于同一盘中，如有位置上的修改记得在para文件中修正
+**3.修改FactorTestPara.py 中rootpath的位置，默认为与py文件处于同一盘中，如有位置上的修改记得在para文件中修正**
 
 
 ## 3.数据库、因子库更新办法
@@ -155,19 +153,19 @@ FactorTestMain 中的FactosrTest() 是测试的核心类，在构造函数中已
 
 ## 5.怎样新增数据集
 
-1. 在datainfo.xlsx中新增行
+**1. 在datainfo.xlsx中新增行**
 
 ![Generated](Readme%20pictures/image-7.png)
 
 在函数中填写函数名，名称、存储地址（不需要标注路径）  其他可不填（建议数据库键写英文简称）
 
-2.在UpdateRawData.py中写 与1中函数名一致函数，以infoDF为传入参数，infoDF即datainfo.xlsx
+**2.在UpdateRawData.py中写 与1中函数名一致函数，以infoDF为传入参数，infoDF即datainfo.xlsx**
 
 中函数列值与函数名一致的函数，因此必须保证新增的函数名称与之前的不一致
 
-3.可调用FB.getUpdateStartTime(infoDF['最新时间']，backdays=0)，获取目前函数更新到的最新时间点，便于从断点开始更新节约时间，backdays=t代表从最新日期向前推几个自然日
+**3.可调用FB.getUpdateStartTime(infoDF['最新时间']，backdays=0)，获取目前函数更新到的最新时间点，便于从断点开始更新节约时间，backdays=t代表从最新日期向前推几个自然日**
 
-4.目前以写了 
+**4.目前已写了 **
 
            FB.saveDailyData(sqlData,infoDF)用于存储数据库中日数据
 

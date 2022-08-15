@@ -92,65 +92,65 @@ FactorTestMain 中的FactosrTest() 是测试的核心类，在构造函数中已
 
 通用变量：
 
-        **self.FactorDataBase** 因子池 
+ **self.FactorDataBase** 因子池 
 
-        **self.factorlist** 存储因子名称
+ **self.factorlist** 存储因子名称
 
-        **self.filterStockDF** 可以存放指数成分股、行业指数等,会在下面的测试中限定股票池，也可以在底下的测试前修改
+ **self.filterStockDF** 可以存放指数成分股、行业指数等,会在下面的测试中限定股票池，也可以在底下的测试前修改
 
-        **self.retData** 收益数据三列矩阵
+ **self.retData** 收益数据三列矩阵
 
-        **self.ICList** IC数据序列
+ **self.ICList** IC数据序列
 
-        **self.RankICList** RankIC数据序列   
+ **self.RankICList** RankIC数据序列   
 
-        **self.portfolioList** 投资组合序列
+ **self.portfolioList** 投资组合序列
 
-        **self.ICAns** IC测试结果
+ **self.ICAns** IC测试结果
 
-        **self.portfolioAns** 投资组合测试结果
+ **self.portfolioAns** 投资组合测试结果
 
-        **self.portfolioGroup** 投资组合数据
+ **self.portfolioGroup** 投资组合数据
 
-        **self.annualTurnover** 储存年化换手率数据
+ **self.annualTurnover** 储存年化换手率数据
 
-        **self.year\_performance** 年化表现
+ **self.year\_performance** 年化表现
 
-        **self.WR** 储存胜率
+ **self.WR** 储存胜率
 
-        **self.PL** 储存赔率
+ **self.PL** 储存赔率
 
 方法：
 
-        1. **updateFactorList** 更新因子列表self.factorlist
-        2. **getFactor**可以将因子序列存储加入因子池中
-        3. **calcIC** 可以计算IC值等信息 calcIC(self,factorlist='',startMonth='',endMonth=''):
+ 1. **updateFactorList** 更新因子列表self.factorlist
+ 2. **getFactor**可以将因子序列存储加入因子池中
+ 3. **calcIC** 可以计算IC值等信息 calcIC(self,factorlist='',startMonth='',endMonth=''):
 
-            Factorlist 为空则计算全部因子值的相关信息，'ret20'  ['ret20','ROE\_q']均可
+     Factorlist 为空则计算全部因子值的相关信息，'ret20'  ['ret20','ROE\_q']均可
 
-            StartMonth 、endMonth 如需填写 请填写数字月份 例如 201001
+     StartMonth 、endMonth 如需填写 请填写数字月份 例如 201001
 
-            得到**self.portfolioList IC结果序列 self.portfolioAns 测试结果（portfolioDF是DF版本）**
+     得到**self.portfolioList IC结果序列 self.portfolioAns 测试结果（portfolioDF是DF版本）**
 
-        4. **calcLongShort** 同上新增两项  t=5 几分组， asc=True 从小到大
+ 4. **calcLongShort** 同上新增两项  t=5 几分组， asc=True 从小到大
 
-            得到**self.ICList IC结果序列 self.ICAns 测试结果(ICDF是DataFrame版本）**
+     得到**self.ICList IC结果序列 self.ICAns 测试结果(ICDF是DataFrame版本）**
 
-            注意：如果只测试一个因子，会自动画图
+     注意：如果只测试一个因子，会自动画图
 
-        5. **autoTest**  涵盖以上两个，自动简易测试
-        6. **TopK** 每期筛选前k(默认k=30名），计算年化收益率、信息比率、胜率、最大回撤
-        7. **calcFutureRet** 计算每个月向后未来1到36个月的收益均值，存储在self.FutureRet里
-        8. **displayWinRate** 显示胜率和赔率（盈亏比）
-        9. **displayYearPerformance** 展示年度收益，存储在**self.year\_performance**中
-        10. **calcCorrMatrix** 计算因子值间相关性与因子IC间相关性（注：需要因子数量大于1）
-        11. **calcCorrBarra** 计算因子值与Barra因子间相关性（目前依赖先前版本Barra)
-        12. **calcFamaMacBeth** 对因子值和收益进行FamaMacBeth回归，表示因子对股票收益的解释效果
-        13. **calcPureFactor** 计算纯净因子收益(剔除Barra与行业，得到 原因子+‘\_pure’因子作为纯净因子）
-        14. **doubleSorting** 对两个因子进行双重排序，得到年化收和信息比率矩阵
-        15. **calcGroupIC** 计算多个因子的IC、ICIR、Rank IC、Rank ICIR，必须传入因子列表
-        16. **Indtest为**FactorTest的Inherited Class
-            **convertStocktoInd** 将个股数据转化为行业数据
+ 5. **autoTest**  涵盖以上两个，自动简易测试
+ 6. **TopK** 每期筛选前k(默认k=30名），计算年化收益率、信息比率、胜率、最大回撤
+ 7. **calcFutureRet** 计算每个月向后未来1到36个月的收益均值，存储在self.FutureRet里
+ 8. **displayWinRate** 显示胜率和赔率（盈亏比）
+ 9. **displayYearPerformance** 展示年度收益，存储在**self.year\_performance**中
+ 10. **calcCorrMatrix** 计算因子值间相关性与因子IC间相关性（注：需要因子数量大于1）
+ 11. **calcCorrBarra** 计算因子值与Barra因子间相关性（目前依赖先前版本Barra)
+ 12. **calcFamaMacBeth** 对因子值和收益进行FamaMacBeth回归，表示因子对股票收益的解释效果
+ 13. **calcPureFactor** 计算纯净因子收益(剔除Barra与行业，得到 原因子+‘\_pure’因子作为纯净因子）
+ 14. **doubleSorting** 对两个因子进行双重排序，得到年化收和信息比率矩阵
+ 15. **calcGroupIC** 计算多个因子的IC、ICIR、Rank IC、Rank ICIR，必须传入因子列表
+ 16. **Indtest为**FactorTest的Inherited Class
+     **convertStocktoInd** 将个股数据转化为行业数据
 
 
 ## 5.怎样新增数据集
@@ -168,6 +168,7 @@ FactorTestMain 中的FactosrTest() 是测试的核心类，在构造函数中已
 3.可调用FB.getUpdateStartTime(infoDF['最新时间']，backdays=0)，获取目前函数更新到的最新时间点，便于从断点开始更新节约时间，backdays=t代表从最新日期向前推几个自然日
 
 4.目前以写了 
+
            FB.saveDailyData(sqlData,infoDF)用于存储数据库中日数据
 
            FB.saveFinData(sqlData,infoDF)存储财务数据
@@ -198,6 +199,7 @@ index为 time columns 为code  存储时注意将time独立作为一列（只要
 2.在UpdateFactorData中写因子更新函数
 
 要求
+
    1.一定只能从本地获取数据！！ 基础数据使用FB.read\_feather(DataPath+xx )提取,注意提取后的形式，
 
    2.如果需要用到中间变量，请存放至temp文件夹中，方便重复利用，请注意中间变量的命名细节（形如xxx\_xxx.txt 或xxx.xxx.csv），建议同一类因子放到一个函数里面更新

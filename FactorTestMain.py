@@ -1,7 +1,6 @@
 from FactorTest.FactorTestPara import *
 from FactorTest.FactorTestBox import *
 
-
 class FactorTest():
     def __init__(self):
         self.startdate=20000101
@@ -22,10 +21,19 @@ class FactorTest():
         self.PL={}
         pd.options.mode.use_inf_as_na = True  #剔除inf
         self.dataProcess=dataProcess(self.FactorDataBase)
+    
     def updateFactorList(self):
+        '''
+        功能：更新因子列表self.factorlist
+        '''
         self.factorlist=getfactorname(self.FactorDataBase['v'])
+
     def getFactor(self,Factor):
-        #考虑：频率统一为月度 ,sql型数据
+        '''
+        频率统一为月度 ,sql型数据
+        功能：更新因子（从原List和DataBase后删去再重新载入）
+        输入：因子Factor ['time','code','ret20']
+        '''
         if('month' in Factor):
             Factor.rename(columns={'month':'time'},inplace=True)
         if('date' in Factor):
@@ -46,6 +54,12 @@ class FactorTest():
 
     
     def calcIC(self,factorlist='',startMonth='',endMonth=''):
+        '''
+        功能：计算IC，ICIR，rankIC，rankICIR，t_value
+        输入：回测因子列表factorlist ['Ret20',...] 可为空
+                起止日期startMonth和endMonth 如：200001(int类型)
+        输出：打印单个或多个因子的IC，ICIR等值
+        '''
         if(factorlist==''):
             factorlist=self.factorlist
         if(type(factorlist)==str):
@@ -71,6 +85,15 @@ class FactorTest():
             print(self.ICDF)
 
     def calcLongShort(self,factorlist='',startMonth='',endMonth='',t=5,asc=''):
+        '''
+        功能：计算多空收益,存储在self.portfolioDF中
+        输入：回测因子列表factorlist ['Ret20',...] 可为空
+                起止日期startMonth和endMonth 如：200001(int类型)
+                分组数量t（默认5组）
+                升降序asc（T or F 方向， 默认为False从大到小）
+        输出：年化收益率、信息比率、胜率、最大回撤
+                净值图（同时回测多个因子不输出图）
+        '''
         if(factorlist==''):
             factorlist=self.factorlist
         if(type(factorlist)==str):
@@ -117,11 +140,27 @@ class FactorTest():
         
     #常规测试流程
     def autotest(self,factorlist='',startMonth='',endMonth='',t=5,asc=''):
+        '''
+        功能：常规测试流程，计算IC、多空收益
+        输入：回测因子列表factorlist ['Ret20',...] 可为空
+                起止日期startMonth和endMonth 如：200001(int类型)
+                分组数量t（默认5组）
+                升降序asc  默认为从大到小
+        '''
         self.calcIC(factorlist,startMonth,endMonth)
         self.calcLongShort(factorlist,startMonth,endMonth,t,asc)
 
-    #计算按因子值排名前K
+
     def calcTopK(self,factorlist='',startMonth='',endMonth='',k=30,asc='',base='',MVweight=False):
+        '''
+        功能：计算按因子值排名前K个，存储在self.portfolioDF中
+        输入：回测因子列表factorlist ['Ret20',...] 可为空
+            起止日期startMonth和endMonth 如：200001(int类型)
+            排名前K个（默认30个）
+            升降序asc（T or F 方向， 默认为True 从小到大 False为从大到小）
+            被筛选因子base
+        输出：TopK组合的年化收益率、信息比率、胜率、最大回撤
+        '''
         if(factorlist==''):
             factorlist=self.factorlist
         if(type(factorlist)==str):
@@ -183,18 +222,13 @@ class FactorTest():
 
     def calcFutureRet(self,factorlist='',startMonth='',endMonth='',L=36,t=5,asc=''):
         '''
-        Parameters
-        ----------
-        factorlist : TYPE, optional
-            需要测试的因子  'factor1' 或 ['factor1','factor2'] 可留空
-        startMonth :int 起始月份 201001   可留空
-        endMonth : int 终止月份 形如202201 可留空
-        L : 向后看的月数，默认36个月
-        t : int 分组数，默认为5.
-        asc : T or F 方向， 默认为True 从小到大 False为从大到小
-        Returns
-        -------
-        返回每个月向后未来1到36个月的收益均值，存储在Test.FutureRet里面
+        功能：计算每个月向后未来1到36个月的收益均值，存储在self.FutureRet里面
+        输入：回测因子列表factorlist ['Ret20',...] 可为空
+                起止日期startMonth和endMonth 如：200001(int类型)
+                L : 向后看的月数，默认36个月
+                t : int 分组数，默认为5.
+                asc : T or F 方向， 默认为False 从大到小
+        输出：每个月向后未来1到36个月的收益均值
         '''
         if(factorlist==''):
             factorlist=self.factorlist
@@ -228,8 +262,13 @@ class FactorTest():
                 self.FutureRet.loc[i,facname]=(ls_ret[1]-ls_ret[t]).mean()#第一组-第五组
         self.FutureRet.plot()
     
-    #计算胜率赔率
+
     def displayWinRate(self,factorlist=''):
+        '''
+        功能：计算胜率和赔率（盈亏比
+        输入：回测因子列表factorlist ['Ret20',...] 可为空
+        输出：胜率'WR'和赔率'PL'
+        '''
         if(factorlist==''):
             factorlist=self.portfolioList.keys()
         for facname in factorlist:
@@ -241,7 +280,9 @@ class FactorTest():
     #展示年度收益
     def displayYearPerformance(self,factorlist='',t=5):
         '''
-        分年度打印：
+        功能：展示年度收益，存储在self.year_performance中
+        输入：回测因子列表factorlist ['Ret20',...] 可为空，组数t 默认为5
+        显示：分年度打印：
             一、五组业绩
             一-五 收益率、信息比例、月胜率、最大回撤FB.calcPortfolioRet
         '''
@@ -261,23 +302,15 @@ class FactorTest():
                 ans1.loc[t]=(portfolio_loc[t]+1).prod()-1
                 ans1.name=year
                 ans=ans.append(ans1)
-            self.year_performance[facname]=ans 
+            self.year_performance[facname]=ans
+
     #计算相关性矩阵 1.因子值矩阵 2.IC矩阵
     def calcCorrMatrix(self,CorType=stats.spearmanr):
         '''
         self.factorCorr 因子相关性  ICCorr IC序列相关性
-        默认使用 stats.spearmanr
+        参数：CorType默认使用 stats.spearmanr
         可换成stats.pearsonr
-
-        Parameters
-        ----------
-        CorType : TYPE, optional
-            DESCRIPTION. The default is stats.spearmanr.
-
-        Returns
-        -------
-        None.
-
+        输出：因子相关性矩阵和IC序列相关性矩阵
         '''
         self.factorCorr=pd.DataFrame([],index=self.factorlist,columns=self.factorlist)
         self.ICCorr=pd.DataFrame([],index=self.factorlist,columns=self.factorlist)
@@ -296,8 +329,14 @@ class FactorTest():
         print(self.factorCorr)
         print('IC相关性：')
         print(self.ICCorr.dropna(how='all').dropna(how='all',axis=1))
+
     #测试与Barra因子
     def calcCorrBarra(self,factorlist=''):
+        '''
+        功能：计算被回测因子与Barra因子的相关性spearmanr
+        factorlist:对应的参数，str 'fac1'  /list  ['fac1','fac2']
+        输出：相关性矩阵
+        '''
         if(factorlist==''):
             factorlist=self.factorlist
         if(type(factorlist)==str):
@@ -312,9 +351,15 @@ class FactorTest():
         print('与Barra相关性')
         print(self.Corr_Mat.T)                
         
-        
-        
+
     def calcFamaMacBeth(self,factorlist='',startMonth='',endMonth='',width=''):
+        '''
+        功能：对因子值和收益进行FamaMacBeth回归，表示因子对股票收益的解释效果
+        输入：
+        factorlist:对应的参数，str 'fac1'  /list  ['fac1','fac2']
+        startMonth endMonth 对应回归的范畴
+        输出：列表，包含各个因子回归结果的PanelResults Object
+        '''
         if(factorlist==''):
             factorlist=self.factorlist
         if(type(factorlist)==str):
@@ -337,8 +382,15 @@ class FactorTest():
             mod = FamaMacBeth.from_formula('ret ~ 1 + ' + facname, data=Mer)
             result.append(mod.fit())
         return result
+
+
     #得到纯因子，后缀为 +_pure
     def calcPureFactor(self,factorlist=''):
+        '''
+        功能：计算纯因子，剔除barra因子的影响
+        输入：因子列表
+        输出：factor+'_pure' 纳入
+        '''
         if(factorlist==''):
             factorlist=self.factorlist
         if(type(factorlist)==str):
@@ -349,25 +401,17 @@ class FactorTest():
     
     def doubleSorting(self,factor_list,method='cond',startMonth=200001,endMonth=210001,t1=5,t2=5,asc=[]):
         '''
-
-        Parameters
-        ----------
-        factor_list : list
-            必须传入一个列表 ['fac1','fac2']，表示求fac2在fac1条件下的双重排序，独立排序时fac1, fac2顺序无关
-                fac2在fac1条件下的双重排序命名为：'fac2|fac1'.
-        
-        method : str 'cond' or 'idp' or 'rev'
-            'cond'为条件双重排序(默认)，'idp'为独立双重排序  'rev'为条件双重排序(反向)
-            
-        t1, t2 : int
-            t1, t2分别为fac1, fac2的分组数， 默认为5
-            
-        asc=[]  默认为False 即从大到小 第一组因子值最大
-        Returns
-        -------
-        第一个返回值为t1*t2年化收益率矩阵.
-        第二个返回值为t1*t2信息比率矩阵
-        portfolioList和portfolioGroup做相应更新
+        功能：对两个因子进行双重排序，得到年化收和信息比率矩阵
+        输入：
+            factor_list : 必须传入一个列表 ['fac1','fac2']，表示求fac2在fac1条件下的双重排序，独立排序时fac1, fac2顺序无关
+            fac2在fac1条件下的双重排序命名为：'fac2|fac1'.
+            排序方法：'cond'为条件双重排序(默认)，'idp'为独立双重排序  'rev'为条件双重排序(反向)
+            t1, t2 : t1, t2分别为fac1, fac2的分组数， 默认为5
+            asc=[]  默认为False 即从大到小 第一组因子值最大
+        输出：
+            第一个返回值为t1*t2年化收益率矩阵 即[0]
+            第二个返回值为t1*t2信息比率矩阵   即[1]
+            portfolioList和portfolioGroup做相应更新
 
         '''
         data = self.FactorDataBase['v'][['time','code']+factor_list].copy()
@@ -391,6 +435,9 @@ class FactorTest():
             tmp=factor_list[0]
             factor_list[0]=factor_list[1]
             factor_list[1]=tmp
+            tmp=t1
+            t1=t2
+            t2=tmp
             
         if method=='cond':    
             data = data.groupby('time').apply(isinGroupT, factor_list[0], asc=ascloc1, t=t1).reset_index(drop=True)
@@ -399,7 +446,7 @@ class FactorTest():
             data = data.groupby('time').apply(isinGroupT, factor_list[0], asc=ascloc1, t=t1).reset_index(drop=True)
             data = data.groupby('time').apply(isinGroupT, factor_list[1], asc=ascloc2, t=t2).reset_index(drop=True)
             
-        facname=('%s|%s'%(factor_list[1], factor_list[0]))
+        facname = ('%s|%s'%(factor_list[1], factor_list[0]))
         data[facname] = data[factor_list[0]].apply(lambda x: str(x))+data[factor_list[1]].apply(lambda x: str(x)) #条件分组编号
         ls_ret = calcGroupRet(data,facname,RetData) #条件分组收益率
         fac2_ls_ret = calcGroupRet(data,factor_list[1],RetData)
@@ -419,8 +466,11 @@ class FactorTest():
 
     def calcGroupIC(self,factor_list,startMonth=200001,endMonth=210001,t1=5,t2=5,asc=''):
         '''
-         factor_list : list
-            必须传入一个列表 ['fac1','fac2']，表示求fac2在fac1条件下的双重排序，
+        功能：计算多个因子的IC、ICIR、Rank IC、Rank ICIR
+        输入：factor_list : 必须传入一个列表 ['fac1','fac2']
+            t1, t2 : t1, t2分别为fac1, fac2的分组数， 默认为5
+            asc=''  默认为False 即从大到小 第一组因子值最大
+        输出：dataframe每行对应一个因子的IC、ICIR、Rank IC、Rank ICIR信息
         '''
         if(asc!=''):
             ascloc=asc
@@ -433,7 +483,7 @@ class FactorTest():
         RetData=RetData[RetData.time>=startMonth]
         RetData=RetData[RetData.time<=endMonth]
         data = data.merge(RetData, on=['time','code'], how='outer').dropna()
-        data = data.groupby('time').apply(FB.isinGroupT, factor_list[0], asc=ascloc, t=t1).reset_index(drop=True)
+        data = data.groupby('time').apply(isinGroupT, factor_list[0], asc=ascloc, t=t1).reset_index(drop=True)
         IC = []
         for i in range(1,t2+1):
             data_temp = data[data[factor_list[0]]==i][['time','code',factor_list[1],'ret']]
@@ -482,22 +532,32 @@ class IndTest(FactorTest):
 
     #将个股转换为行业数据
     @staticmethod
-    def convertStocktoInd(Factor,func=lambda x:x.mean()):
+    def convertStocktoInd(Factor,factorList='',func=lambda x:x.mean()):
+        '''
+        将个股数据按行业合成
+        Factor 个股数据 ['time','code','factor']
+        factorList 留空自动寻找Factor中所有除time、code 以外的columns 
+        func 加权方式，默认 lambda x:x.mean()   (可换中位数、市值加权等方法)
+        输出 DF 行业数据
+        '''
         if('month' in Factor):
             Factor.rename(columns={'month':'time'},inplace=True)
         if('date' in Factor):
             Factor.rename(columns={'date':'time'},inplace=True)
-        factorList=Factor.columns        
-        if(len(factorList)<=2):
-            print('error')
-            return Factor
-        else:
-            factorList=getfactorname(Factor,['code','time'])
+        if (factorList==''):
+            factorList=Factor.columns        
+            if(len(factorList)<=2):
+                print('error')
+                return Factor
+            else:
+                factorList=getfactorname(Factor,['code','time'])
+        if(type(factorlist)==str):
+            factorlist=[factorlist]
         DF=pd.DataFrame(columns=['time','code'])
         indStatus=pd.read_csv(filepathtestdata+'sw1.csv').set_index('申万代码')
         for facname in factorList:
             DataLoc=Factor[['time','code',facname]]
-            DataLoc=DataLoc.pipe(getSWIndustry,freq='month')
+            DataLoc=DataLoc.pipe(getSWIndustryData,freq='month')
             DataLoc=DataLoc.groupby(['time','SWind']).mean().reset_index()
             A=DataLoc.groupby('SWind')
             for ind in DataLoc['SWind'].unique():

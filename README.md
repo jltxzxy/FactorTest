@@ -1,5 +1,5 @@
 
-# 因子测试框架说明文档（8.11更新）
+# 因子测试框架说明文档（8.15更新）1.0.6
 
 ## 1.因子框架组件
 
@@ -216,152 +216,152 @@ index为 time columns 为code  存储时注意将time独立作为一列（只要
 
 ## 说明文档：FactorTestBox
 
-        1. read/save  read\_feather/pickle/hdf5  独写各类文件
-          read\_feather(地址）  
-          save\_feather(地址，文件)
-          注：feather 无法存储index信息，注意reset\_index一下
+1. read/save  read\_feather/pickle/hdf5  独写各类文件
+  read\_feather(地址）  
+  save\_feather(地址，文件)
+  注：feather 无法存储index信息，注意reset\_index一下
 
-        2. getSql 从数据库获取信息
+2. getSql 从数据库获取信息
 
-        4. 时间格式转化
+4. 时间格式转化
 
-        5. toTime 字符串转datetime
+5. toTime 字符串转datetime
 
-        6. fromTime datetime格式转为int
+6. fromTime datetime格式转为int
 
-        7. regress 回归函数 （y,x,con=True)   y是因变量 x是自变量 请确保不存在空值（填充） 且y与x行数一致  con=True 加截距项
+7. regress 回归函数 （y,x,con=True)   y是因变量 x是自变量 请确保不存在空值（填充） 且y与x行数一致  con=True 加截距项
 
-        8. getTradeDateList 获取交易日 日历 getStockList 获取所有股票序列 getRetData获取收益率数据 getFisicalList 获得财务报表发布序列
+8. getTradeDateList 获取交易日 日历 getStockList 获取所有股票序列 getRetData获取收益率数据 getFisicalList 获得财务报表发布序列
 
-        9. getIndexComponent 获得指数成分股信息 getIndexComponent(300/500/800/1000/'wind')分别相应的指数  
+9. getIndexComponent 获得指数成分股信息 getIndexComponent(300/500/800/1000/'wind')分别相应的指数  
 
-        10. getIndexData获取指数日行情数据
+10. getIndexData获取指数日行情数据
 
-        11. setStockPool 设定股票池 setStockPool(DF,DFfilter) 用DFfilter筛选DF矩阵
-            factorDF=FB.setStockPool(factorDF, FB.getIndexComponent(poolname))
+11. setStockPool 设定股票池 setStockPool(DF,DFfilter) 用DFfilter筛选DF矩阵
+    factorDF=FB.setStockPool(factorDF, FB.getIndexComponent(poolname))
 
-        12. 申万行业分类
-          a. getSWIndustryData 获取申万行业数据
-          b. addSWIndustry 在DF右侧新增一列申万行业分类
+12. 申万行业分类
+  a. getSWIndustryData 获取申万行业数据
+  b. addSWIndustry 在DF右侧新增一列申万行业分类
 
-        13. 申万板块数据
-          a. getSWSector 获取申万板块数据
-          b. addSWSector 在DF右侧新增一列申万板块数据
-        14. getIndRetData 获取行业收益数据DF三列式
+13. 申万板块数据
+  a. getSWSector 获取申万板块数据
+  b. addSWSector 在DF右侧新增一列申万板块数据
+14. getIndRetData 获取行业收益数据DF三列式
 
-        15. industryAggregate 合并成为大类行业
+15. industryAggregate 合并成为大类行业
 
-        16. getBarraData 获取Barra数据（time ,code,十个因子）
+16. getBarraData 获取Barra数据（time ,code,十个因子）
 
-        17. factorStack 读取矩阵型，并转为（time,code,factorname)
+17. factorStack 读取矩阵型，并转为（time,code,factorname)
 
-        18. Kickout 剔除ST、上市60天以内、停牌股
+18. Kickout 剔除ST、上市60天以内、停牌股
 
-        19. zscore&zscorefac  标准化 dePCT deSTD deMAD 对应三种去极值方法 fillmean fillmedian 对应填充空值
-            方法：factor=factor.groupby('time').apply(deMAD)
-            也可以直接用factorInit(factor)定义
+19. zscore&zscorefac  标准化 dePCT deSTD deMAD 对应三种去极值方法 fillmean fillmedian 对应填充空值
+    方法：factor=factor.groupby('time').apply(deMAD)
+    也可以直接用factorInit(factor)定义
 
-        20. dayToMonth(DF,factor\_list='',method='last') 日频到月频转换   method:{'last','mean','sum'} 
+20. dayToMonth(DF,factor\_list='',method='last') 日频到月频转换   method:{'last','mean','sum'} 
 
-        21. isinGroupT 判断各股票的指标在多空分中的哪一组
+21. isinGroupT 判断各股票的指标在多空分中的哪一组
 
-        22. isinTopK 判断各股票的指标知否在前k, 1表示在，0表示不在
+22. isinTopK 判断各股票的指标知否在前k, 1表示在，0表示不在
 
-        23. calcGroupRet 计算组合收益
+23. calcGroupRet 计算组合收益
 
-        24. calcWRPL 计算胜率赔率
+24. calcWRPL 计算胜率赔率
 
-        25. calcResid 计算回归残差
+25. calcResid 计算回归残差
 
-        26. getCMV 获取市值数据
+26. getCMV 获取市值数据
 
-        27. getZXIndustryData 获取中信行业分类数据
+27. getZXIndustryData 获取中信行业分类数据
 
-        28. 中性化用 ，月频数据  
-          a. addXSWindDum 加入SWind列 
-          b. addXZXind 加入中信行业分类列
-          c. addXSize 加入对数流通市值列
-          d. addXBarra 加入barra因子值列
+28. 中性化用 ，月频数据  
+  a. addXSWindDum 加入SWind列 
+  b. addXZXind 加入中信行业分类列
+  c. addXSize 加入对数流通市值列
+  d. addXBarra 加入barra因子值列
 
-        29. 计算行业市值中性化
-          a. Regbysize 计算现有因子和行业市值因子的回归残差
-          b. calcNeuIndsize计算纯因子，排除行业市值对因子的影响
+29. 计算行业市值中性化
+  a. Regbysize 计算现有因子和行业市值因子的回归残差
+  b. calcNeuIndsize计算纯因子，排除行业市值对因子的影响
 
-        30. 计算市值中性化
-          a. RegbySize 计算现有因子和行业市值因子的回归残差，用于中性化
-          b. calcNeuSize 计算市值中性，排除市值对因子的影响
+30. 计算市值中性化
+  a. RegbySize 计算现有因子和行业市值因子的回归残差，用于中性化
+  b. calcNeuSize 计算市值中性，排除市值对因子的影响
 
-        31. 计算Barra因子中性化
-          a. RegbyBarra 计算现有因子和barra因子的回归残差，用于中性化
-          b. calcNeuBarra 计算Barra因子中性，排除barra因子对待处理因子的影响
-          c. 用法示例： factorDF=FB.calcNeuIndSize(factorDF, 'ROE\_q')
+31. 计算Barra因子中性化
+  a. RegbyBarra 计算现有因子和barra因子的回归残差，用于中性化
+  b. calcNeuBarra 计算Barra因子中性，排除barra因子对待处理因子的影响
+  c. 用法示例： factorDF=FB.calcNeuIndSize(factorDF, 'ROE\_q')
 
-        32. calcIC 用pearsonr和spearmanr方法计算相关性（IC、rankIC）
+32. calcIC 用pearsonr和spearmanr方法计算相关性（IC、rankIC）
 
-        33. calcIClist 计算组合IC值
+33. calcIClist 计算组合IC值
 
-        34. ZipLocalFiles(file\_path,save\_path,zipname='',t=5)  将file\_path的文件压缩到save\_path 中，分为t组，组名为zipname(str) 默认为zipname+日期
+34. ZipLocalFiles(file\_path,save\_path,zipname='',t=5)  将file\_path的文件压缩到save\_path 中，分为t组，组名为zipname(str) 默认为zipname+日期
 
-        35. copyFile 复制本地文件，需输入文件地址和粘贴地址
+35. copyFile 复制本地文件，需输入文件地址和粘贴地址
 
-        36. copyFiles 复制文件夹
+36. copyFiles 复制文件夹
 
-        37. 计算年成长率
-          a. \_calcGrowthRate 利用最小二乘法回归计算年成长率
-          b. calcGrowthRate 利用a中函数计算过去windows年复合变化率（同比）
+37. 计算年成长率
+  a. \_calcGrowthRate 利用最小二乘法回归计算年成长率
+  b. calcGrowthRate 利用a中函数计算过去windows年复合变化率（同比）
 
-        38. calcAllFactorAns 计算所有储存在factorInfo文件中的因子的收益、IC等信息
+38. calcAllFactorAns 计算所有储存在factorInfo文件中的因子的收益、IC等信息
 
-        39. calcPortfolioRet 计算组合收益率
+39. calcPortfolioRet 计算组合收益率
 
-        40. calcAnnualTurnover 获取年度换手率信息
+40. calcAnnualTurnover 获取年度换手率信息
 
-        41. DataRenewTime 更新数据库 FactorRenewTime 更新因子库
+41. DataRenewTime 更新数据库 FactorRenewTime 更新因子库
 
-        42. getUpdateStartTime 获得开始更新时间
+42. getUpdateStartTime 获得开始更新时间
 
-        43. readLocalData 读取本地数据并转为三列式  readLocalDataSet批量读取一系列数据并转为[time,code,xx,xx ]格式 readLocalFeather   读取本地feather文件
-            注意：这一步会比较慢，如果不是必要建议还是多用矩阵运算
+43. readLocalData 读取本地数据并转为三列式  readLocalDataSet批量读取一系列数据并转为[time,code,xx,xx ]格式 readLocalFeather   读取本地feather文件
+    注意：这一步会比较慢，如果不是必要建议还是多用矩阵运算
 
-        45. 存储模块
-          a. saveSqlData 存储sql型数据
-          b. saveDailyData存储日频数据
-          c. saveFinData用于存储财务数据
-          d. saveIndData用于存储行业成分股数据
-          e. saveIndexComponentData存储指数成分股
+45. 存储模块
+  a. saveSqlData 存储sql型数据
+  b. saveDailyData存储日频数据
+  c. saveFinData用于存储财务数据
+  d. saveIndData用于存储行业成分股数据
+  e. saveIndexComponentData存储指数成分股
 
-        46. toLongForm 矩阵形式转换为Sql形式数据（三列）
-            toShortForm Sql形式数据转换为矩阵形式数据
+46. toLongForm 矩阵形式转换为Sql形式数据（三列）
+    toShortForm Sql形式数据转换为矩阵形式数据
 
-        47. fillFisicalMonth 将财务数据（季）因子化【压缩成矩阵形式、拓展到月频、向上填补后再展开】
+47. fillFisicalMonth 将财务数据（季）因子化【压缩成矩阵形式、拓展到月频、向上填补后再展开】
 
-        48. partition 将列表切片再合成为每部分固定长度的嵌套列表
+48. partition 将列表切片再合成为每部分固定长度的嵌套列表
 
-        49. transData 将财务数据转化为时间、股票代码、因子名称三列dataframe或矩阵
-            将更名为transFisicalData
+49. transData 将财务数据转化为时间、股票代码、因子名称三列dataframe或矩阵
+    将更名为transFisicalData
 
-        50. calc\_plot 对dataframe进行plot画图
+50. calc\_plot 对dataframe进行plot画图
 
-        51. 财务数据处理
-          a. calcFisicalLYR 将3、6、9月末财务数据时间统一为上年末数据
-          b. calcFisicalq 将6、9、12月末的当年累积时段财务数据转化为当季度内的数据
-          c. calcFisicalttm 将季度时段财务数据转化为过去四个季度的和（ttm数据）
+51. 财务数据处理
+  a. calcFisicalLYR 将3、6、9月末财务数据时间统一为上年末数据
+  b. calcFisicalq 将6、9、12月末的当年累积时段财务数据转化为当季度内的数据
+  c. calcFisicalttm 将季度时段财务数据转化为过去四个季度的和（ttm数据）
 
-        52. applyindex 直接对DataFrame或Series的index执行func
+52. applyindex 直接对DataFrame或Series的index执行func
 
-        53. calc\_exp\_list 根据因子半衰期生成权重序列
+53. calc\_exp\_list 根据因子半衰期生成权重序列
 
-        54. 计算加权数据
-          a. calcWeightedStd 计算加权标准差
-          b. calcWeightedMean 计算加权平均
+54. 计算加权数据
+  a. calcWeightedStd 计算加权标准差
+  b. calcWeightedMean 计算加权平均
 
-        55. rollingRegress 待完善
+55. rollingRegress 待完善
 
-        56. monthToDay 将月频数据dataframe转化为日频数据dataframe，空缺数据向下补齐
+56. monthToDay 将月频数据dataframe转化为日频数据dataframe，空缺数据向下补齐
 
-        57. plotICList 对多空组合的IC和rank IC进行绘图
+57. plotICList 对多空组合的IC和rank IC进行绘图
 
-        58. plotPortfolioList 对t分组的每组和多空组合的收益画图
+58. plotPortfolioList 对t分组的每组和多空组合的收益画图
 
 
 

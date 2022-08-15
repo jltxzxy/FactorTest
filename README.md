@@ -27,7 +27,7 @@ DataCollectionMain 是更新的主函数
 
 **1.4 记录数据字典 DataInfo.xlsx**
 
-![Generated](https://github.com/james-shan/FactorTest/tree/main/Readme%20pictures/image-1.png?raw=true)
+![Generated](/tree/main/Readme%20pictures/image-1.png)
 
 根据函数列匹配UpdateRawData中对应的更新函数
 

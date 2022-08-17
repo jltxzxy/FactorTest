@@ -23,6 +23,7 @@ import datetime
 import zipfile
 import shutil
 import pyfinance.ols as po
+import functools
 
 #设置图片保存格式和字体
 import matplotlib as mpl
@@ -352,6 +353,7 @@ def setStockPool(DF,DFfilter):
     return DF
 
 #得到申万行业分类数据 
+@functools.lru_cache()
 def getSWIndustryData(level=1,freq='month',fill=False):
     """
     功能：获取申万行业分类数据
@@ -816,6 +818,7 @@ def addXZXind(DF,freq='month'):
     return DF
 
 
+@functools.lru_cache()
 def getCMV(freq='month'):
     '''
     功能：获取市值数据
@@ -867,11 +870,15 @@ def RegbyindSize(x,name):
         x[name+'_neu']=np.nan
         return x
     y=x_tmp[[name]]
-    x1=x_tmp[['CMV']]
-    for ind in x['SWind'].unique():
-        x_tmp[ind]=0
-        x_tmp.loc[x_tmp.SWind==ind,ind]=1
-        x1[ind]=x_tmp[ind]  
+
+    x1=pd.get_dummies(x_tmp[['CMV','SWind']],'SWind')
+    # x1=x_tmp[['CMV']]
+
+    # for ind in x['SWind'].unique():
+    #     x_tmp[ind]=0
+    #     x_tmp.loc[x_tmp.SWind==ind,ind]=1
+    #     x1[ind]=x_tmp[ind]  
+
     x_tmp[name+'_neu']=calcResid(y, x1)
     x=x.merge(x_tmp[['code',name+'_neu']],on='code',how='outer')
     return x
@@ -970,11 +977,12 @@ def RegbyBarra(x,name,factor_list):
         x[name+'_pure']=np.nan
         return x
     y=x_tmp[[name]]
-    x1=x_tmp[factor_list]
-    for ind in x['SWind'].unique():
-        x_tmp[ind]=0
-        x_tmp.loc[x_tmp.SWind==ind,ind]=1
-        x1[ind]=x_tmp[ind]  
+    x1=pd.get_dummies(x_tmp[factor_list+['SWind']],'SWind')
+    # x1=x_tmp[factor_list]
+    # for ind in x['SWind'].unique():
+    #     x_tmp[ind]=0
+    #     x_tmp.loc[x_tmp.SWind==ind,ind]=1
+    #     x1[ind]=x_tmp[ind]  
     x_tmp[name+'_pure']=calcResid(y, x1)
     x=x.merge(x_tmp[['code',name+'_pure']],on='code',how='outer')
     return x
